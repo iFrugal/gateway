@@ -33,7 +33,7 @@ jobs:
         run: |
           git config --global user.email "abhijeet.techrepo@gmail.com"
           git config --global user.name "Abhijeet Rai"
-          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/iFrugal/spring-gateway-toolkit.git
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/iFrugal/gateway.git
           git config --global credential.helper store
           git remote -v
 

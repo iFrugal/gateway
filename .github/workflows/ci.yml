@@ -23,4 +23,6 @@ jobs:
       - name: Build and Test
         run: mvn -B clean verify -Dgpg.skip=true
 
-
+      # TODO: Add SonarCloud analysis once project is set up on sonarcloud.io
+      # and unit tests are in place. Required secrets: SONAR_TOKEN
+      # See TODO.md for unit test backlog.

@@ -1,6 +1,6 @@
 # Spring Gateway Toolkit
 
-[![CI Build](https://github.com/iFrugal/spring-gateway-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/iFrugal/spring-gateway-toolkit/actions/workflows/ci.yml)
+[![CI Build](https://github.com/iFrugal/gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/iFrugal/gateway/actions/workflows/ci.yml)
 [![Maven Central](https://img.shields.io/maven-central/v/com.github.ifrugal/spring-gateway-toolkit.svg)](https://central.sonatype.com/artifact/com.github.ifrugal/spring-gateway-toolkit)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 

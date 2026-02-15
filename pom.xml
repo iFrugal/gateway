@@ -19,12 +19,12 @@
         A comprehensive Spring Cloud Gateway toolkit providing request/response logging,
         caching, mock API framework (Conman), and OAuth2 security - all configurable via YAML.
     </description>
-    <url>https://github.com/iFrugal/spring-gateway-toolkit</url>
+    <url>https://github.com/iFrugal/gateway</url>
 
     <scm>
-        <connection>scm:git:https://x-access-token:${env.GITHUB_TOKEN}@github.com/iFrugal/spring-gateway-toolkit.git</connection>
-        <developerConnection>scm:git:https://x-access-token:${env.GITHUB_TOKEN}@github.com/iFrugal/spring-gateway-toolkit.git</developerConnection>
-        <url>https://github.com/iFrugal/spring-gateway-toolkit</url>
+        <connection>scm:git:https://x-access-token:${env.GITHUB_TOKEN}@github.com/iFrugal/gateway.git</connection>
+        <developerConnection>scm:git:https://x-access-token:${env.GITHUB_TOKEN}@github.com/iFrugal/gateway.git</developerConnection>
+        <url>https://github.com/iFrugal/gateway</url>
         <tag>HEAD</tag>
     </scm>
 
