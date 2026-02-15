@@ -1,0 +1,129 @@
+# =============================================================================
+# Spring Gateway Toolkit - Docker Compose
+# =============================================================================
+# Usage:
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d gateway      # Start only the gateway
+#   docker-compose logs -f gateway    # View gateway logs
+#   docker-compose down               # Stop all services
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  # Spring Gateway Application
+  # ==========================================================================
+  gateway:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: spring-gateway-toolkit:latest
+    container_name: spring-gateway
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    environment:
+      # Server Configuration
+      - SERVER_PORT=8080
+      # Use profiles: docker (base), consul, eureka, static
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-docker}
+
+      # JVM Options
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseG1GC
+
+      # Consul (only used with consul profile)
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+
+      # Eureka (only used with eureka profile)
+      - EUREKA_SERVER_URL=${EUREKA_SERVER_URL:-http://eureka:8761/eureka/}
+
+      # Static routes (only used with static profile)
+      - USER_SERVICE_URL=${USER_SERVICE_URL:-http://user-service:8080}
+      - PRODUCT_SERVICE_URL=${PRODUCT_SERVICE_URL:-http://product-service:8080}
+      - ORDER_SERVICE_URL=${ORDER_SERVICE_URL:-http://order-service:8080}
+
+      # Gateway Features
+      - GATEWAY_LOGGING_ENABLED=true
+      - GATEWAY_CACHING_ENABLED=true
+      - GATEWAY_CACHE_DEFAULT_TTL=3600
+      - GATEWAY_CORS_ENABLED=true
+      - GATEWAY_CONMAN_ENABLED=true
+
+      # Security (optional)
+      - GATEWAY_SECURITY_ENABLED=${SECURITY_ENABLED:-false}
+      - GATEWAY_OAUTH2_ENABLED=${OAUTH2_ENABLED:-false}
+      - OAUTH2_CLIENT_ID=${OAUTH2_CLIENT_ID:-}
+      - OAUTH2_CLIENT_SECRET=${OAUTH2_CLIENT_SECRET:-}
+      - OAUTH2_ISSUER_URI=${OAUTH2_ISSUER_URI:-}
+      - OAUTH2_AUTHORIZATION_URI=${OAUTH2_AUTHORIZATION_URI:-}
+      - OAUTH2_TOKEN_URI=${OAUTH2_TOKEN_URI:-}
+
+    volumes:
+      # Mount external configuration
+      - ./config:/app/config:ro
+      # Mount mock API configurations
+      - ./mocks:/app/mocks:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - gateway-network
+    depends_on:
+      consul:
+        condition: service_healthy
+        required: false
+
+  # ==========================================================================
+  # Consul (Optional - for service discovery)
+  # ==========================================================================
+  consul:
+    image: consul:1.15
+    container_name: consul
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    command: agent -server -bootstrap-expect=1 -ui -client=0.0.0.0
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - gateway-network
+    profiles:
+      - consul
+
+networks:
+  gateway-network:
+    driver: bridge
+
+# =============================================================================
+# Usage Examples:
+# =============================================================================
+#
+# 1. Start gateway only (no service discovery):
+#    docker-compose up -d gateway
+#
+# 2. Start with static routes:
+#    SPRING_PROFILES_ACTIVE=docker,static docker-compose up -d gateway
+#
+# 3. Start with Consul for service discovery:
+#    SPRING_PROFILES_ACTIVE=docker,consul docker-compose --profile consul up -d
+#
+# 4. Override configuration:
+#    GATEWAY_PORT=9090 docker-compose up -d
+#
+# 5. With OAuth2:
+#    OAUTH2_ENABLED=true \
+#    OAUTH2_CLIENT_ID=your-client-id \
+#    OAUTH2_CLIENT_SECRET=your-secret \
+#    OAUTH2_ISSUER_URI=https://auth.example.com \
+#    docker-compose up -d
+#
+# =============================================================================

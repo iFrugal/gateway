@@ -1,0 +1,2 @@
+io.github.springgateway.autoconfigure.GatewayToolkitAutoConfiguration
+io.github.springgateway.autoconfigure.SecurityAutoConfiguration
