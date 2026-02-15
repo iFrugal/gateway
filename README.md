@@ -1,6 +1,26 @@
 # Spring Gateway Toolkit
 
+[![CI Build](https://github.com/iFrugal/spring-gateway-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/iFrugal/spring-gateway-toolkit/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/com.github.ifrugal/spring-gateway-toolkit.svg)](https://central.sonatype.com/artifact/com.github.ifrugal/spring-gateway-toolkit)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 A comprehensive Spring Cloud Gateway toolkit providing request/response logging, caching, mock API framework (Conman), and OAuth2 security - all configurable via YAML.
+
+## Maven Coordinates
+
+```xml
+<!-- Parent coordinates -->
+<groupId>com.github.ifrugal</groupId>
+<artifactId>spring-gateway-toolkit</artifactId>
+```
+
+### Modules
+
+| Module | ArtifactId | Description |
+|--------|-----------|-------------|
+| Core Library | `gateway-core` | Caching, logging, Conman mock framework, filters |
+| Spring Boot Starter | `gateway-starter` | Auto-configuration for all features |
+| Standalone App | `gateway-app` | Ready-to-run gateway application |
 
 ## Features
 
@@ -48,6 +68,9 @@ spring-gateway-toolkit/
 │   ├── Dockerfile
 │   ├── docker-compose.yml
 │   └── config/            # External configuration
+├── .github/workflows/     # CI/CD
+│   ├── ci.yml             # Build + test on PRs
+│   └── release-action.yml # Maven Central release
 └── pom.xml                # Parent POM
 ```
 
@@ -59,10 +82,22 @@ Add the starter dependency to your project:
 
 ```xml
 <dependency>
-    <groupId>io.github.springgateway</groupId>
+    <groupId>com.github.ifrugal</groupId>
     <artifactId>gateway-starter</artifactId>
     <version>1.0.0</version>
 </dependency>
+```
+
+Enable in your application:
+
+```java
+@SpringBootApplication
+@EnableGatewayToolkit
+public class MyGatewayApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MyGatewayApplication.class, args);
+    }
+}
 ```
 
 ### Option 2: Use the Standalone Application
@@ -78,12 +113,8 @@ java -jar gateway-app/target/gateway-app.jar
 ### Option 3: Use Docker
 
 ```bash
-# Build and run
 cd docker
 docker-compose up -d
-
-# With custom configuration
-docker-compose up -d gateway
 ```
 
 ## Configuration
@@ -152,8 +183,6 @@ gateway:
 
 ## Environment Variables
 
-All configuration can be overridden via environment variables:
-
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `SERVER_PORT` | Server port | 8080 |
@@ -165,134 +194,6 @@ All configuration can be overridden via environment variables:
 | `GATEWAY_SECURITY_ENABLED` | Enable security | false |
 | `OAUTH2_CLIENT_ID` | OAuth2 client ID | - |
 | `OAUTH2_CLIENT_SECRET` | OAuth2 client secret | - |
-| `OAUTH2_ISSUER_URI` | OAuth2 issuer URI | - |
-| `SPRING_PROFILES_ACTIVE` | Active profile (consul, eureka, static) | - |
-
-## Service Discovery Profiles
-
-The gateway is **not coupled to any specific service discovery mechanism**. Use Spring profiles to enable your preferred discovery service:
-
-### No Service Discovery (Default)
-By default, the gateway runs without service discovery. Define routes manually in your `application.yml`:
-
-```yaml
-spring:
-  cloud:
-    gateway:
-      routes:
-        - id: my-service
-          uri: http://localhost:8081
-          predicates:
-            - Path=/api/**
-```
-
-### Consul Profile
-```bash
-# Add dependency to your pom.xml (already optional in gateway-app)
-# <dependency>
-#     <groupId>org.springframework.cloud</groupId>
-#     <artifactId>spring-cloud-starter-consul-discovery</artifactId>
-# </dependency>
-
-# Run with Consul
-java -jar gateway-app.jar --spring.profiles.active=consul
-
-# Or via environment variable
-SPRING_PROFILES_ACTIVE=consul java -jar gateway-app.jar
-
-# Configure Consul host
-CONSUL_HOST=consul.example.com SPRING_PROFILES_ACTIVE=consul java -jar gateway-app.jar
-```
-
-### Eureka Profile
-```bash
-# Add dependency to your pom.xml
-# <dependency>
-#     <groupId>org.springframework.cloud</groupId>
-#     <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
-# </dependency>
-
-# Run with Eureka
-java -jar gateway-app.jar --spring.profiles.active=eureka
-
-# Configure Eureka server
-EUREKA_SERVER_URL=http://eureka.example.com:8761/eureka/ SPRING_PROFILES_ACTIVE=eureka java -jar gateway-app.jar
-```
-
-### Static Routes Profile
-```bash
-# Run with static routes (no discovery)
-java -jar gateway-app.jar --spring.profiles.active=static
-
-# Configure service URLs
-USER_SERVICE_URL=http://users:8081 \
-PRODUCT_SERVICE_URL=http://products:8082 \
-SPRING_PROFILES_ACTIVE=static \
-java -jar gateway-app.jar
-```
-
-### Kubernetes
-For Kubernetes, use the Spring Cloud Kubernetes dependency and create your own `application-kubernetes.yml` profile:
-
-```xml
-<dependency>
-    <groupId>org.springframework.cloud</groupId>
-    <artifactId>spring-cloud-starter-kubernetes-client-all</artifactId>
-</dependency>
-```
-
-## Conman Mock Configuration
-
-Define mocks in YAML:
-
-```yaml
-# Simple GET endpoint
-- request:
-    uri: /mock/users
-    httpMethod: GET
-  response:
-    body: |
-      [{"id": 1, "name": "John"}, {"id": 2, "name": "Jane"}]
-    contentType: application/json
-    statusCode: 200
-
-# POST with validation
-- request:
-    uri: /mock/users
-    httpMethod: POST
-    validation:
-      bodySchema: |
-        {
-          "type": "object",
-          "properties": {
-            "name": {"type": "string", "minLength": 1},
-            "email": {"type": "string", "format": "email"}
-          },
-          "required": ["name", "email"]
-        }
-      headers:
-        authorization:
-          required: true
-          regexValidator: "Bearer .*"
-  response:
-    bodyTemplate: true
-    body: |
-      {
-        "id": "${uuid1}",
-        "name": "${request.body.name}",
-        "created": "${.now?string('yyyy-MM-dd')}"
-      }
-    statusCode: 201
-
-# Multi-tenant mock
-- request:
-    uri: /mock/data
-    httpMethod: GET
-  tenantIds: ["tenant-a", "tenant-b"]
-  response:
-    body: '{"tenant": "specific data"}'
-    statusCode: 200
-```
 
 ## API Endpoints
 
@@ -308,7 +209,6 @@ Define mocks in YAML:
 - `POST /conman/admin/register` - Register new mocks (multipart)
 - `POST /conman/admin/reload` - Reload mocks from files
 - `DELETE /conman/admin/mocks` - Clear all mocks
-- `GET /conman/admin/test?httpMethod=GET&uri=/mock/test` - Test mock lookup
 
 ## Building
 
@@ -324,58 +224,22 @@ cd docker
 docker build -t spring-gateway-toolkit:latest ..
 ```
 
-## Docker Usage
-
-### Simple Deployment
-
-```bash
-docker run -d \
-  -p 8080:8080 \
-  -e GATEWAY_CACHING_ENABLED=true \
-  -e GATEWAY_CONMAN_ENABLED=true \
-  -v ./config:/app/config \
-  -v ./mocks:/app/mocks \
-  spring-gateway-toolkit:latest
-```
-
-### With Docker Compose
-
-```bash
-# Start gateway only (no service discovery)
-docker-compose up -d gateway
-
-# Start with Consul profile
-SPRING_PROFILES_ACTIVE=consul docker-compose --profile consul up -d
-
-# Start with static routes
-SPRING_PROFILES_ACTIVE=static docker-compose up -d gateway
-
-# Override configuration
-GATEWAY_PORT=9090 docker-compose up -d
-```
-
-## Using as a Library
-
-1. Add the dependency
-2. Enable features in your `application.yml`
-3. Optionally use the `@EnableGatewayToolkit` annotation
-
-```java
-@SpringBootApplication
-@EnableGatewayToolkit
-public class MyGatewayApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(MyGatewayApplication.class, args);
-    }
-}
-```
-
 ## Requirements
 
 - Java 21+
 - Maven 3.8+
 - Docker (optional)
 
+## Release
+
+Releases are automated via GitHub Actions. On push to `master`, the `release-action.yml` workflow runs `mvn release:prepare release:perform` to publish to Maven Central.
+
+**Required GitHub Secrets:**
+- `CENTRAL_USERNAME` — Maven Central (Sonatype) username
+- `CENTRAL_TOKEN` — Maven Central token
+- `GPG_PRIVATE_KEY` — GPG private key for signing artifacts
+- `GPG_PASSPHRASE` — GPG key passphrase
+
 ## License
 
-MIT License
+[Apache License 2.0](LICENSE)

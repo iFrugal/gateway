@@ -1,0 +1,35 @@
+name: CI Build
+
+on:
+  pull_request:
+    branches: [ master ]
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Build and Test
+        run: mvn -B clean verify -Dgpg.skip=true
+
+      - name: Upload coverage to SonarCloud
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          mvn -B sonar:sonar \
+            -Dsonar.projectKey=iFrugal_spring-gateway-toolkit \
+            -Dsonar.organization=ifrugal \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dgpg.skip=true
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>io.github.springgateway</groupId>
+        <groupId>com.github.ifrugal</groupId>
         <artifactId>spring-gateway-toolkit</artifactId>
-        <version>1.0.0</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>gateway-app</artifactId>
@@ -22,7 +22,7 @@
     <dependencies>
         <!-- Gateway Starter (includes core) -->
         <dependency>
-            <groupId>io.github.springgateway</groupId>
+            <groupId>com.github.ifrugal</groupId>
             <artifactId>gateway-starter</artifactId>
         </dependency>
 
@@ -62,10 +62,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-logging</artifactId>
         </dependency>
-        <dependency>
-            <groupId>net.logstash.logback</groupId>
-            <artifactId>logstash-logback-encoder</artifactId>
-        </dependency>
 
         <!-- Security -->
         <dependency>
@@ -91,7 +87,6 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>${lombok.version}</version>
             <scope>provided</scope>
         </dependency>
 
@@ -115,7 +110,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>io.github.springgateway.app.GatewayApplication</mainClass>
+                    <mainClass>com.github.ifrugal.gateway.app.GatewayApplication</mainClass>
                 </configuration>
                 <executions>
                     <execution>
@@ -125,10 +120,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
             </plugin>
         </plugins>
     </build>
