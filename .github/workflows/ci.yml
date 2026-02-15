@@ -23,13 +23,4 @@ jobs:
       - name: Build and Test
         run: mvn -B clean verify -Dgpg.skip=true
 
-      - name: Upload coverage to SonarCloud
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        run: |
-          mvn -B sonar:sonar \
-            -Dsonar.projectKey=iFrugal_spring-gateway-toolkit \
-            -Dsonar.organization=ifrugal \
-            -Dsonar.host.url=https://sonarcloud.io \
-            -Dgpg.skip=true
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
