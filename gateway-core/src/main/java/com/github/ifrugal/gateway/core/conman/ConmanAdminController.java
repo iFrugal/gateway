@@ -25,18 +25,33 @@ public class ConmanAdminController {
     private final ConmanCache conmanCache;
 
     /**
+     * Maximum allowed upload file size (1 MB). Prevents abuse via oversized YAML uploads.
+     */
+    static final long MAX_UPLOAD_SIZE_BYTES = 1024 * 1024; // 1 MB
+
+    /**
      * Register mock configurations from an uploaded file.
      *
      * @param tenantId Optional tenant ID
-     * @param registrationFile YAML file containing mock configurations
+     * @param registrationFile YAML file containing mock configurations (max 1 MB)
+     * @throws IllegalArgumentException if file is empty or exceeds size limit
      */
     @PostMapping(value = "/register", consumes = MULTIPART_FORM_DATA_VALUE)
     public Map<String, String> register(
             @RequestPart(required = false) String tenantId,
             @RequestPart MultipartFile registrationFile) throws IOException {
 
-        log.info("Registering mock configurations from file: {}, tenantId: {}",
-                registrationFile.getOriginalFilename(), tenantId);
+        if (registrationFile.isEmpty()) {
+            throw new IllegalArgumentException("Upload file is empty");
+        }
+        if (registrationFile.getSize() > MAX_UPLOAD_SIZE_BYTES) {
+            throw new IllegalArgumentException(
+                    String.format("Upload file exceeds maximum size of %d bytes (got %d bytes)",
+                            MAX_UPLOAD_SIZE_BYTES, registrationFile.getSize()));
+        }
+
+        log.info("Registering mock configurations from file: {} ({} bytes), tenantId: {}",
+                registrationFile.getOriginalFilename(), registrationFile.getSize(), tenantId);
 
         conmanCache.register(tenantId, registrationFile.getInputStream());
 

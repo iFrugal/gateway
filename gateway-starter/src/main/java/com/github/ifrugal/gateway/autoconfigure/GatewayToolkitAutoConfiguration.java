@@ -15,12 +15,12 @@ import com.github.ifrugal.gateway.core.conman.ConmanAdminController;
 import com.github.ifrugal.gateway.core.filter.LoggingAndCachingWebFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
@@ -31,11 +31,13 @@ import org.springframework.web.server.WebFilter;
 /**
  * Auto-configuration for the Spring Gateway Toolkit.
  *
- * This class automatically configures:
- * - Request/Response logging (when gateway.logging.enabled=true)
- * - Response caching with Caffeine (when gateway.caching.enabled=true)
- * - Conman mock API framework (when gateway.conman.enabled=true)
- * - CORS configuration (when gateway.cors.enabled=true)
+ * <p>This class automatically configures:</p>
+ * <ul>
+ *   <li>Request/Response logging (when gateway.logging.enabled=true)</li>
+ *   <li>Response caching with Caffeine (when gateway.caching.enabled=true)</li>
+ *   <li>Conman mock API framework (when gateway.conman.enabled=true)</li>
+ *   <li>CORS configuration (when gateway.cors.enabled=true)</li>
+ * </ul>
  */
 @AutoConfiguration
 @EnableConfigurationProperties({
@@ -50,7 +52,7 @@ import org.springframework.web.server.WebFilter;
 public class GatewayToolkitAutoConfiguration {
 
     /**
-     * Configure the cache provider.
+     * Configure the Caffeine cache provider when caching is enabled.
      */
     @Bean
     @ConditionalOnMissingBean(CacheProvider.class)
@@ -82,7 +84,8 @@ public class GatewayToolkitAutoConfiguration {
             CacheProvider cacheProvider) {
         log.info("Configuring LoggingAndCachingWebFilter (logging={}, caching={})",
                 loggingProperties.isEnabled(), cachingProperties.isEnabled());
-        return new LoggingAndCachingWebFilter(loggingProperties, cachingProperties, cacheProvider);
+        return new LoggingAndCachingWebFilter(loggingProperties, cachingProperties, cacheProvider,
+                loggingProperties.getIgnorePaths());
     }
 
     /**
@@ -109,8 +112,9 @@ public class GatewayToolkitAutoConfiguration {
     }
 
     /**
-     * Conman configuration - enabled when gateway.conman.enabled=true
+     * Conman configuration - enabled when gateway.conman.enabled=true.
      */
+    @Configuration
     @ConditionalOnProperty(prefix = "gateway.conman", name = "enabled", havingValue = "true")
     public static class ConmanAutoConfiguration {
 
@@ -128,9 +132,13 @@ public class GatewayToolkitAutoConfiguration {
             return new ConmanServlet(conmanCache);
         }
 
+        /**
+         * Register Conman routes using the managed ConmanServlet bean.
+         * Reuses the same ConmanServlet instance registered as a Spring bean.
+         */
         @Bean
-        public RouterFunction<ServerResponse> conmanRoutes(ConmanProperties conmanProperties, ConmanCache conmanCache) {
-            ConmanServlet conmanServlet = new ConmanServlet(conmanCache);
+        public RouterFunction<ServerResponse> conmanRoutes(ConmanProperties conmanProperties,
+                                                           ConmanServlet conmanServlet) {
             HandlerFunction<ServerResponse> handlerFunction = conmanServlet::service;
 
             if (conmanProperties.getServletUriMappings().isEmpty()) {

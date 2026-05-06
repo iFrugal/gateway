@@ -26,7 +26,12 @@ import java.util.List;
 
 /**
  * Auto-configuration for security features.
- * Enabled when spring-security is on the classpath and gateway.security.enabled=true.
+ *
+ * <p>Enabled when spring-security is on the classpath and {@code gateway.security.enabled=true}.</p>
+ *
+ * <p><b>Important:</b> When security is enabled, the admin endpoints ({@code /gateway/cache/**}
+ * and {@code /conman/admin/**}) require authentication by default. Add them to
+ * {@code gateway.security.guest-allowed-paths} only if you want to expose them publicly.</p>
  */
 @AutoConfiguration
 @ConditionalOnClass(SecurityWebFilterChain.class)
@@ -46,11 +51,17 @@ public class SecurityAutoConfiguration {
         log.info("Configuring security with {} guest paths", guestPaths.size());
 
         http.authorizeExchange(exchanges -> {
+            // Admin endpoints are always protected (require authentication)
+            // They are NOT added to permitAll() - only explicit guest-allowed-paths bypass auth.
+            exchanges
+                    .pathMatchers("/gateway/cache/**", "/conman/admin/**").authenticated();
+
             exchanges
                     // Allow OPTIONS for CORS preflight
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     // Allow common paths
-                    .pathMatchers("/", "/actuator/**", "/oauth2/**", "/login/**",
+                    .pathMatchers("/", "/actuator/health", "/actuator/info",
+                            "/oauth2/**", "/login/**",
                             "/swagger-ui.html", "/swagger-ui/**", "/swagger-resources/**",
                             "/v3/api-docs/**", "/api-docs/**", "/swagger-ui/oauth2-redirect.html"
                     ).permitAll();

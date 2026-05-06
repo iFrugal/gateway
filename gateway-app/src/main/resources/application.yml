@@ -133,7 +133,7 @@ springdoc:
     enabled: true
     groups:
       enabled: true
-  packages-to-scan: io.github.springgateway
+  packages-to-scan: com.github.ifrugal.gateway
 
 # =============================================================================
 # Actuator / Monitoring
@@ -173,4 +173,4 @@ logging:
   level:
     root: INFO
     org.springframework.cloud.gateway: ${GATEWAY_LOG_LEVEL:WARN}
-    io.github.springgateway: ${TOOLKIT_LOG_LEVEL:INFO}
+    com.github.ifrugal.gateway: ${TOOLKIT_LOG_LEVEL:INFO}

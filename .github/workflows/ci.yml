@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Required for SonarCloud to analyze full history
 
       - name: Set up Java
         uses: actions/setup-java@v4
@@ -20,9 +22,28 @@ jobs:
           java-version: '21'
           cache: 'maven'
 
-      - name: Build and Test
+      - name: Build and Test with Coverage
         run: mvn -B clean verify -Dgpg.skip=true
 
-      # TODO: Add SonarCloud analysis once project is set up on sonarcloud.io
-      # and unit tests are in place. Required secrets: SONAR_TOKEN
-      # See TODO.md for unit test backlog.
+      - name: Upload JaCoCo Coverage Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            **/target/site/jacoco/
+          retention-days: 14
+
+      - name: SonarCloud Analysis
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mvn -B sonar:sonar \
+            -Dgpg.skip=true \
+            -Dsonar.projectKey=iFrugal_gateway \
+            -Dsonar.organization=ifrugal \
+            -Dsonar.host.url=https://sonarcloud.io \
+            -Dsonar.java.coveragePlugin=jacoco \
+            -Dsonar.coverage.jacoco.xmlReportPaths=**/target/site/jacoco/jacoco.xml

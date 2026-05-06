@@ -34,6 +34,7 @@ public class BodyCaptureRequest extends ServerHttpRequestDecorator {
                         DataBufferUtils.release(dataBuffer);
                     }
                 })
+                .defaultIfEmpty("")
                 .cache()
                 .onErrorReturn("");
     }

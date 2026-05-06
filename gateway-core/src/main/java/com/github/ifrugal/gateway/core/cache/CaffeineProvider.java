@@ -2,6 +2,7 @@ package com.github.ifrugal.gateway.core.cache;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.ifrugal.gateway.core.config.CachingProperties;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
@@ -15,6 +16,9 @@ import java.util.stream.Collectors;
 /**
  * Caffeine-based implementation of the CacheProvider interface.
  * Provides high-performance in-memory caching with per-entry TTL support.
+ *
+ * <p>Uses Caffeine's {@code expireAfter} (variable expiration) to enforce per-entry TTL.
+ * Each entry's TTL is specified at insertion time and stored in the {@link CacheEntry}.</p>
  */
 @Slf4j
 public class CaffeineProvider implements CacheProvider {
@@ -24,7 +28,22 @@ public class CaffeineProvider implements CacheProvider {
     public CaffeineProvider(CachingProperties properties) {
         this.cache = Caffeine.newBuilder()
                 .maximumSize(properties.getMaxSize())
-                .expireAfterWrite(properties.getDefaultTtl(), TimeUnit.SECONDS)
+                .expireAfter(new Expiry<String, CacheEntry>() {
+                    @Override
+                    public long expireAfterCreate(String key, CacheEntry entry, long currentTime) {
+                        return TimeUnit.SECONDS.toNanos(entry.getTtlSeconds());
+                    }
+
+                    @Override
+                    public long expireAfterUpdate(String key, CacheEntry entry, long currentTime, long currentDuration) {
+                        return TimeUnit.SECONDS.toNanos(entry.getTtlSeconds());
+                    }
+
+                    @Override
+                    public long expireAfterRead(String key, CacheEntry entry, long currentTime, long currentDuration) {
+                        return currentDuration; // Don't reset TTL on read
+                    }
+                })
                 .recordStats()
                 .build();
         log.info("Caffeine cache initialized with maxSize={}, defaultTtl={}s",
@@ -35,7 +54,7 @@ public class CaffeineProvider implements CacheProvider {
     public Mono<Optional<String>> get(String key) {
         return Mono.fromSupplier(() -> {
             CacheEntry entry = cache.getIfPresent(key);
-            if (entry != null && !entry.isExpired()) {
+            if (entry != null) {
                 log.debug("Cache hit for key: {}", key);
                 return Optional.of(entry.getValue());
             }
@@ -74,28 +93,39 @@ public class CaffeineProvider implements CacheProvider {
         return cache.asMap().entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
-                        e -> new Date(e.getValue().expirationTime)
+                        e -> Map.of(
+                                "ttlSeconds", e.getValue().getTtlSeconds(),
+                                "createdAt", new Date(e.getValue().getCreatedAt())
+                        )
                 ));
     }
 
     /**
-     * Private cache entry class to manage TTL at the individual entry level.
+     * Cache entry that stores the value along with TTL metadata.
+     * Caffeine handles actual expiration via {@code expireAfter}; this class
+     * only stores metadata for introspection.
      */
-    private static class CacheEntry {
+    static class CacheEntry {
         private final String value;
-        private final long expirationTime;
+        private final long ttlSeconds;
+        private final long createdAt;
 
         public CacheEntry(String value, long ttlSeconds) {
             this.value = value;
-            this.expirationTime = System.currentTimeMillis() + (ttlSeconds * 1000);
+            this.ttlSeconds = ttlSeconds;
+            this.createdAt = System.currentTimeMillis();
         }
 
         public String getValue() {
             return value;
         }
 
-        public boolean isExpired() {
-            return System.currentTimeMillis() > expirationTime;
+        public long getTtlSeconds() {
+            return ttlSeconds;
+        }
+
+        public long getCreatedAt() {
+            return createdAt;
         }
     }
 }

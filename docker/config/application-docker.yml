@@ -81,4 +81,4 @@ gateway:
 # Logging
 logging:
   level:
-    io.github.springgateway: DEBUG
+    com.github.ifrugal.gateway: DEBUG

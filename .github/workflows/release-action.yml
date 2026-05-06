@@ -1,8 +1,11 @@
 name: Release and Deploy to Maven Central
 
 on:
+  # Only trigger releases manually or via tags - never on every push to master.
+  # This prevents accidental releases on every merge.
   push:
-    branches: [ master ]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -43,7 +46,7 @@ jobs:
       - name: Release and Deploy to Maven Central
         run: |
           mvn -B -s ~/.m2/settings.xml \
-          -Darguments="-Dmaven.test.skip=true -Dcentral.autoPublish=false -Dcentral.waitUntil=uploaded" \
+          -Darguments="-Dcentral.autoPublish=false -Dcentral.waitUntil=uploaded" \
           -DscmCommentPrefix="[release] [skip ci] " \
           release:clean release:prepare release:perform
         env:

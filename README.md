@@ -1,17 +1,21 @@
 # Spring Gateway Toolkit
 
 [![CI Build](https://github.com/iFrugal/gateway/actions/workflows/ci.yml/badge.svg)](https://github.com/iFrugal/gateway/actions/workflows/ci.yml)
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=iFrugal_gateway&metric=alert_status)](https://sonarcloud.io/dashboard?id=iFrugal_gateway)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=iFrugal_gateway&metric=coverage)](https://sonarcloud.io/dashboard?id=iFrugal_gateway)
 [![Maven Central](https://img.shields.io/maven-central/v/com.github.ifrugal/spring-gateway-toolkit.svg)](https://central.sonatype.com/artifact/com.github.ifrugal/spring-gateway-toolkit)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-A comprehensive Spring Cloud Gateway toolkit providing request/response logging, caching, mock API framework (Conman), and OAuth2 security - all configurable via YAML.
+A comprehensive Spring Cloud Gateway toolkit providing request/response logging, caching, mock API framework (Conman), and OAuth2 security — all configurable via YAML.
 
 ## Maven Coordinates
 
 ```xml
-<!-- Parent coordinates -->
-<groupId>com.github.ifrugal</groupId>
-<artifactId>spring-gateway-toolkit</artifactId>
+<dependency>
+    <groupId>com.github.ifrugal</groupId>
+    <artifactId>gateway-starter</artifactId>
+    <version>1.0.0</version>
+</dependency>
 ```
 
 ### Modules
@@ -25,70 +29,26 @@ A comprehensive Spring Cloud Gateway toolkit providing request/response logging,
 ## Features
 
 ### 1. Request/Response Logging
-- Log requests and responses based on path and method patterns
-- Configurable body capture with sensitive data exclusion
-- Structured logging with timestamps, request IDs, and timing
+Structured request/response logging with configurable path patterns, body capture, sensitive header redaction, and automatic `x-request-id` propagation. Ignore paths are configurable to skip health checks and documentation endpoints.
 
 ### 2. Response Caching
-- Caffeine-based in-memory caching
-- Configurable TTL per path pattern
-- Wildcard path matching support
-- Cache management API
+Caffeine-based in-memory caching with per-entry TTL via Caffeine's variable expiration. Cache keys are deterministic (sorted query parameters) to prevent collisions. Includes a REST management API for cache inspection and invalidation.
 
-### 3. Conman - Mock API Framework
-- YAML-based mock endpoint configuration
-- Multi-tenant support
-- Request validation (JSON Schema, headers, query params)
-- Template-based response bodies
-- Runtime registration via REST API
+### 3. Conman — Mock API Framework
+YAML-based mock endpoint configuration with multi-tenant support, request validation (JSON Schema, headers, query params), template-based response bodies, and runtime registration via REST API. Upload size limits enforced for security.
 
 ### 4. Security & OAuth2
-- OAuth2 Resource Server (JWT validation)
-- OAuth2 Login flow
-- Configurable guest/public paths
-- Seamless Swagger UI integration
+OAuth2 Resource Server (JWT validation) and OAuth2 Login flow with configurable guest/public paths, protected admin endpoints, and seamless Swagger UI integration.
 
 ### 5. CORS Configuration
-- Fully configurable via YAML
-- Allowed origins, methods, headers
+Fully configurable via YAML — allowed origins, methods, headers, and credentials.
 
 ### 6. Service Discovery (Optional)
-- **No vendor lock-in** - works without any service discovery
-- Profile-based activation for Consul, Eureka, or static routes
-- Easy to extend for Kubernetes, Zookeeper, etc.
-
-## Project Structure
-
-```
-spring-gateway-toolkit/
-├── gateway-core/          # Core library (reusable JAR)
-├── gateway-starter/       # Spring Boot Starter (auto-configuration)
-├── gateway-app/           # Standalone application
-├── docker/                # Docker configuration
-│   ├── Dockerfile
-│   ├── docker-compose.yml
-│   └── config/            # External configuration
-├── .github/workflows/     # CI/CD
-│   ├── ci.yml             # Build + test on PRs
-│   └── release-action.yml # Maven Central release
-└── pom.xml                # Parent POM
-```
+No vendor lock-in — works without service discovery. Profile-based activation for Consul, Eureka, or static routes.
 
 ## Quick Start
 
-### Option 1: Use as a Library
-
-Add the starter dependency to your project:
-
-```xml
-<dependency>
-    <groupId>com.github.ifrugal</groupId>
-    <artifactId>gateway-starter</artifactId>
-    <version>1.0.0</version>
-</dependency>
-```
-
-Enable in your application:
+### Use as a Library
 
 ```java
 @SpringBootApplication
@@ -100,21 +60,23 @@ public class MyGatewayApplication {
 }
 ```
 
-### Option 2: Use the Standalone Application
+Selectively disable features via annotation:
+
+```java
+@EnableGatewayToolkit(enableCaching = false, enableConman = false)
+```
+
+### Use the Standalone Application
 
 ```bash
-# Build
 mvn clean package
-
-# Run
 java -jar gateway-app/target/gateway-app.jar
 ```
 
-### Option 3: Use Docker
+### Use Docker
 
 ```bash
-cd docker
-docker-compose up -d
+cd docker && docker-compose up -d
 ```
 
 ## Configuration
@@ -123,105 +85,93 @@ All features are configured under the `gateway` prefix in `application.yml`:
 
 ```yaml
 gateway:
-  # Request/Response Logging
   logging:
     enabled: true
+    ignore-paths:                    # Override default ignored paths
+      - /actuator/health
+      - /swagger-ui/**
     requests:
       - paths: ["/api/**"]
         methods: ["*"]
         exclude-body: false
-      - paths: ["/auth/login"]
-        methods: [POST]
-        exclude-body: true  # Don't log passwords
 
-  # Response Caching
   caching:
     enabled: true
-    default-ttl: 86400  # 1 day
+    default-ttl: 86400
     max-size: 10000
     rules:
-      - paths: ["/api/products", "/api/categories"]
+      - paths: ["/api/products/**"]
         methods: [GET]
-        ttl: 3600  # 1 hour
+        ttl: 3600
 
-  # CORS
-  cors:
-    enabled: true
-    allowed-origins:
-      - http://localhost:3000
-      - https://myapp.com
-    allowed-methods: [GET, POST, PUT, DELETE, OPTIONS]
-    max-age: 3600
-    allow-credentials: true
-
-  # Conman Mock API
   conman:
     enabled: true
-    servlet-uri-mappings:
-      - /mock/**
-    mapping-files:
-      - classpath:conman.yml
-      - file:/app/mocks/custom-mocks.yml
+    servlet-uri-mappings: [/mock/**]
 
-  # Security
   security:
     enabled: true
-    guest-allowed-paths:
-      - /api/public/**
-      - /mock/**
+    guest-allowed-paths: [/api/public/**, /mock/**]
     oauth2:
       enabled: true
       provider:
         issuer-uri: https://auth.example.com
-        authorization-uri: https://auth.example.com/oauth2/authorize
-        token-uri: https://auth.example.com/oauth2/token
-      client:
-        id: ${OAUTH2_CLIENT_ID}
-        secret: ${OAUTH2_CLIENT_SECRET}
-        scopes: openid,profile,email
 ```
 
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SERVER_PORT` | Server port | 8080 |
-| `GATEWAY_LOGGING_ENABLED` | Enable request logging | true |
-| `GATEWAY_CACHING_ENABLED` | Enable response caching | false |
-| `GATEWAY_CACHE_DEFAULT_TTL` | Default cache TTL (seconds) | 86400 |
-| `GATEWAY_CORS_ENABLED` | Enable CORS | true |
-| `GATEWAY_CONMAN_ENABLED` | Enable mock API framework | false |
-| `GATEWAY_SECURITY_ENABLED` | Enable security | false |
-| `OAUTH2_CLIENT_ID` | OAuth2 client ID | - |
-| `OAUTH2_CLIENT_SECRET` | OAuth2 client secret | - |
+See [Configuration Reference](docs/configuration-reference.md) for all properties.
 
 ## API Endpoints
 
 ### Cache Management
-- `GET /gateway/cache` - List all cache keys
-- `GET /gateway/cache/{key}` - Get cached value
-- `POST /gateway/cache/{key}?value=...&ttlSeconds=...` - Set cache value
-- `DELETE /gateway/cache/{key}` - Invalidate cache entry
-- `DELETE /gateway/cache` - Clear all cache
+- `GET /gateway/cache` — List all cache keys
+- `GET /gateway/cache/{key}` — Get cached value
+- `POST /gateway/cache/{key}?value=...&ttlSeconds=...` — Set cache value
+- `DELETE /gateway/cache/{key}` — Invalidate cache entry
+- `DELETE /gateway/cache` — Clear all cache
 
 ### Conman Admin
-- `GET /conman/admin/mocks` - List all mock configurations
-- `POST /conman/admin/register` - Register new mocks (multipart)
-- `POST /conman/admin/reload` - Reload mocks from files
-- `DELETE /conman/admin/mocks` - Clear all mocks
+- `GET /conman/admin/mocks` — List all mock configurations
+- `POST /conman/admin/register` — Register new mocks (multipart YAML, max 1 MB)
+- `POST /conman/admin/reload` — Reload mocks from configured files
+- `DELETE /conman/admin/mocks` — Clear all mocks
+- `GET /conman/admin/test?httpMethod=GET&uri=/mock/hello` — Test mock lookup
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Architecture Overview](docs/architecture-overview.md) | High-level design, request flow, and design principles |
+| [Module Structure](docs/module-structure.md) | Package layout, key classes, and extension points |
+| [Caching](docs/caching.md) | Cache providers, key generation, and management API |
+| [Logging](docs/logging.md) | Structured logging, body capture, and ignore paths |
+| [Conman Mock Framework](docs/conman.md) | Mock configuration, multi-tenancy, and validation |
+| [Security](docs/security.md) | OAuth2, JWT, CORS, and access control |
+| [Configuration Reference](docs/configuration-reference.md) | Complete property reference with defaults |
+| [Deployment Guide](docs/deployment.md) | Building, Docker, production, and SonarCloud |
+
+## Project Structure
+
+```
+spring-gateway-toolkit/
+├── gateway-core/          # Core library (reusable JAR)
+├── gateway-starter/       # Spring Boot Starter (auto-configuration)
+├── gateway-app/           # Standalone application
+├── docs/                  # Architecture documentation
+├── docker/                # Docker configuration
+├── .github/workflows/     # CI/CD (build, test, SonarCloud, release)
+└── pom.xml                # Parent POM
+```
 
 ## Building
 
 ```bash
-# Build all modules
-mvn clean install
+# Build all modules with tests and coverage
+mvn clean verify
 
-# Build only the library (for use in other projects)
+# Build only the library
 mvn clean install -pl gateway-core,gateway-starter
 
-# Build Docker image
-cd docker
-docker build -t spring-gateway-toolkit:latest ..
+# Run SonarCloud analysis locally
+mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN
 ```
 
 ## Requirements
@@ -230,15 +180,29 @@ docker build -t spring-gateway-toolkit:latest ..
 - Maven 3.8+
 - Docker (optional)
 
+## Quality
+
+CI runs on every push/PR to `master` with JaCoCo code coverage and SonarCloud static analysis. Tests are also executed during Maven Central releases (no `maven.test.skip`).
+
+**Required GitHub Secrets for SonarCloud:** `SONAR_TOKEN`
+
 ## Release
 
-Releases are automated via GitHub Actions. On push to `master`, the `release-action.yml` workflow runs `mvn release:prepare release:perform` to publish to Maven Central.
+Releases are automated via GitHub Actions. Tag a version (`v1.0.0`) or trigger `release-action.yml` manually to publish to Maven Central.
 
 **Required GitHub Secrets:**
 - `CENTRAL_USERNAME` — Maven Central (Sonatype) username
 - `CENTRAL_TOKEN` — Maven Central token
 - `GPG_PRIVATE_KEY` — GPG private key for signing artifacts
 - `GPG_PASSPHRASE` — GPG key passphrase
+
+## Security
+
+When deploying in production, enable security (`gateway.security.enabled=true`) to protect admin endpoints (`/gateway/cache/**`, `/conman/admin/**`). See [Security docs](docs/security.md) and [SECURITY.md](SECURITY.md) for details.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and pull request guidelines.
 
 ## License
 

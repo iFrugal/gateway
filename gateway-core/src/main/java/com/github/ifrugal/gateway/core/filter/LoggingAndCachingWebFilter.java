@@ -7,12 +7,9 @@ import com.github.ifrugal.gateway.core.filter.utils.RequestMatcher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -34,23 +31,41 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
     private final LoggingProperties loggingProperties;
     private final CachingProperties cachingProperties;
     private final CacheProvider cacheProvider;
+    private final List<PathPattern> pathPatternsToIgnore;
 
     private static final PathPatternParser patternParser = new PathPatternParser();
-    private static final List<PathPattern> PATH_PATTERNS_TO_IGNORE = List.of(
-            patternParser.parse("/actuator/health"),
-            patternParser.parse("/actuator/health/ping"),
-            patternParser.parse("/swagger-ui/**"),
-            patternParser.parse("/v3/api-docs/**"),
-            patternParser.parse("/swagger-resources/**")
+
+    /**
+     * Default paths to skip for logging/caching (health checks, swagger docs).
+     */
+    private static final List<String> DEFAULT_IGNORE_PATHS = List.of(
+            "/actuator/health",
+            "/actuator/health/ping",
+            "/swagger-ui/**",
+            "/v3/api-docs/**",
+            "/swagger-resources/**"
     );
 
     public LoggingAndCachingWebFilter(
             LoggingProperties loggingProperties,
             CachingProperties cachingProperties,
             CacheProvider cacheProvider) {
+        this(loggingProperties, cachingProperties, cacheProvider, null);
+    }
+
+    public LoggingAndCachingWebFilter(
+            LoggingProperties loggingProperties,
+            CachingProperties cachingProperties,
+            CacheProvider cacheProvider,
+            List<String> ignorePaths) {
         this.loggingProperties = loggingProperties;
         this.cachingProperties = cachingProperties;
         this.cacheProvider = cacheProvider;
+
+        List<String> paths = (ignorePaths != null && !ignorePaths.isEmpty()) ? ignorePaths : DEFAULT_IGNORE_PATHS;
+        this.pathPatternsToIgnore = paths.stream()
+                .map(patternParser::parse)
+                .toList();
     }
 
     @Override
@@ -61,7 +76,7 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
     @Override
     public Mono<Void> filter(final ServerWebExchange exchange, final WebFilterChain chain) {
         // Skip ignored paths
-        boolean shouldIgnore = PATH_PATTERNS_TO_IGNORE.stream()
+        boolean shouldIgnore = pathPatternsToIgnore.stream()
                 .anyMatch(pattern -> pattern.matches(exchange.getRequest().getPath()));
         if (shouldIgnore) {
             return chain.filter(exchange);
@@ -104,12 +119,9 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
             return cacheProvider.get(cacheKey)
                     .flatMap(cachedResponseOpt -> {
                         if (cachedResponseOpt.isPresent()) {
+                            // Short-circuit: serve directly from cache without calling upstream
                             log.info("Cache HIT for key: {}. Serving from cache.", cacheKey);
-                            return chain.filter(
-                                    exchange.mutate()
-                                            .response(new CachedResponseDecorator(exchange.getResponse(), cachedResponseOpt.get()))
-                                            .build()
-                            );
+                            return serveCachedResponse(originalExchange, cachedResponseOpt.get());
                         } else {
                             log.debug("Cache MISS for key: {}. Fetching from upstream.", cacheKey);
                             return processRequestWithCapture(
@@ -239,92 +251,56 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
         log.info("Response: {}", responseInfo);
     }
 
-    private String generateCacheKey(ServerHttpRequest request) {
-        return request.getMethod().name() + ":" + request.getURI();
+    /**
+     * Generates a deterministic cache key from the request method, path, and query string.
+     * Query parameters are sorted alphabetically to ensure consistent key generation
+     * regardless of parameter order in the URL.
+     *
+     * @param request The incoming HTTP request
+     * @return A cache key in the format "METHOD:path?sorted-query-params"
+     */
+    String generateCacheKey(ServerHttpRequest request) {
+        String path = request.getPath().value();
+        String query = request.getURI().getRawQuery();
+
+        StringBuilder key = new StringBuilder();
+        key.append(request.getMethod().name()).append(":").append(path);
+
+        // Sort query parameters for deterministic key generation
+        if (query != null && !query.isEmpty()) {
+            String[] params = query.split("&");
+            Arrays.sort(params);
+            key.append("?").append(String.join("&", params));
+        }
+
+        return key.toString();
     }
 
     /**
-     * Response decorator that serves cached content.
+     * Serve a cached response directly without calling upstream services.
+     * This short-circuits the filter chain entirely for cache hits, avoiding
+     * unnecessary upstream requests.
+     *
+     * @param exchange The server web exchange
+     * @param cachedBody The cached response body
+     * @return Mono that completes when the cached response is written
      */
-    private static class CachedResponseDecorator implements ServerHttpResponse {
-        private final ServerHttpResponse delegate;
-        private final String cachedBody;
-        private boolean committed = false;
+    private Mono<Void> serveCachedResponse(ServerWebExchange exchange, String cachedBody) {
+        ServerHttpResponse response = exchange.getResponse();
 
-        public CachedResponseDecorator(ServerHttpResponse delegate, String cachedBody) {
-            this.delegate = delegate;
-            this.cachedBody = cachedBody;
+        response.setStatusCode(HttpStatus.OK);
 
-            if (delegate.getStatusCode() == null) {
-                delegate.setStatusCode(HttpStatus.OK);
-            }
-
-            if (!delegate.getHeaders().containsKey("Content-Type")) {
-                delegate.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-            }
-
-            delegate.getHeaders().setContentLength(cachedBody.getBytes().length);
+        if (!response.getHeaders().containsKey("Content-Type")) {
+            response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
         }
 
-        @Override
-        public Mono<Void> writeWith(org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer> body) {
-            if (!this.committed) {
-                this.committed = true;
-                return this.delegate.writeWith(
-                        Mono.just(this.delegate.bufferFactory().wrap(this.cachedBody.getBytes()))
-                );
-            }
-            return Mono.empty();
-        }
+        response.getHeaders().add("X-Cache", "HIT");
 
-        @Override
-        public Mono<Void> writeAndFlushWith(org.reactivestreams.Publisher<? extends org.reactivestreams.Publisher<? extends org.springframework.core.io.buffer.DataBuffer>> body) {
-            return this.writeWith(Mono.empty());
-        }
+        byte[] bodyBytes = cachedBody.getBytes();
+        response.getHeaders().setContentLength(bodyBytes.length);
 
-        @Override
-        public Mono<Void> setComplete() {
-            return this.writeWith(Mono.empty());
-        }
-
-        @Override
-        public boolean isCommitted() {
-            return this.committed || this.delegate.isCommitted();
-        }
-
-        @Override
-        public HttpStatusCode getStatusCode() {
-            return this.delegate.getStatusCode();
-        }
-
-        @Override
-        public boolean setStatusCode(HttpStatusCode statusCode) {
-            return this.delegate.setStatusCode(statusCode);
-        }
-
-        @Override
-        public MultiValueMap<String, ResponseCookie> getCookies() {
-            return this.delegate.getCookies();
-        }
-
-        @Override
-        public void addCookie(ResponseCookie cookie) {
-            this.delegate.addCookie(cookie);
-        }
-
-        @Override
-        public org.springframework.http.HttpHeaders getHeaders() {
-            return this.delegate.getHeaders();
-        }
-
-        @Override
-        public org.springframework.core.io.buffer.DataBufferFactory bufferFactory() {
-            return this.delegate.bufferFactory();
-        }
-
-        @Override
-        public void beforeCommit(java.util.function.Supplier<? extends Mono<Void>> action) {
-            this.delegate.beforeCommit(action);
-        }
+        return response.writeWith(
+                Mono.just(response.bufferFactory().wrap(bodyBytes))
+        );
     }
 }

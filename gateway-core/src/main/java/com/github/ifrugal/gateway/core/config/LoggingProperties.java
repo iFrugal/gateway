@@ -42,6 +42,12 @@ public class LoggingProperties {
     private String level = "info";
 
     /**
+     * Path patterns to ignore for both logging and caching (e.g., health checks, swagger).
+     * Uses Spring path pattern syntax (Ant-style). If empty, defaults are used.
+     */
+    private List<String> ignorePaths = new ArrayList<>();
+
+    /**
      * List of request configurations for logging.
      */
     private List<RequestConfig> requests = new ArrayList<>();

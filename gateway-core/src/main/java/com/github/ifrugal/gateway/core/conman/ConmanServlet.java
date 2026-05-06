@@ -16,22 +16,18 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Reactive servlet for handling mock API requests.
+ * Reactive handler for mock API requests.
  * Matches incoming requests against configured mocks and returns appropriate responses.
+ *
+ * <p>This is a Spring-managed bean - inject it where needed rather than using static access.</p>
  */
 @Slf4j
 public class ConmanServlet {
 
-    private static ConmanServlet INSTANCE;
     private final ConmanCache conmanCache;
 
     public ConmanServlet(ConmanCache conmanCache) {
         this.conmanCache = conmanCache;
-        INSTANCE = this;
-    }
-
-    public static ConmanServlet getInstance() {
-        return INSTANCE;
     }
 
     /**
