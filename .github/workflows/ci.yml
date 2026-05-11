@@ -70,7 +70,17 @@ jobs:
           retention-days: 14
 
       - name: SonarCloud analysis
-        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        # Only run on direct pushes to master. Feature-branch pushes and
+        # PRs from forks don't analyse well in SonarCloud's free tier
+        # without dedicated branch/PR analysis setup, and there is no
+        # value in re-analysing the same code on every feature branch.
+        #
+        # `continue-on-error: true`: SonarCloud is a hygiene/observability
+        # check, not a release gate. A dead or rotated SONAR_TOKEN should
+        # not fail the whole build — surface it as a non-blocking signal
+        # and rotate the secret out-of-band.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
