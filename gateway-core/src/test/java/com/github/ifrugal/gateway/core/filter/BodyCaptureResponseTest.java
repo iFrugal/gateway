@@ -54,5 +54,61 @@ class BodyCaptureResponseTest {
         BodyCaptureResponse captureResponse = new BodyCaptureResponse(delegate);
 
         assertThat(captureResponse.getFullBody()).isEmpty();
+        assertThat(captureResponse.isTruncated()).isFalse();
+    }
+
+    @Test
+    @DisplayName("should truncate captured copy when body exceeds maxCaptureBytes")
+    void truncatesAtCap() {
+        MockServerHttpResponse delegate = new MockServerHttpResponse();
+        // Cap at 50 bytes; emit a single 200-byte chunk
+        BodyCaptureResponse captureResponse = new BodyCaptureResponse(delegate, 50);
+
+        String bodyContent = "z".repeat(200);
+        DataBuffer buffer = bufferFactory.wrap(bodyContent.getBytes(StandardCharsets.UTF_8));
+
+        StepVerifier.create(captureResponse.writeWith(Flux.just(buffer)))
+                .verifyComplete();
+
+        assertThat(captureResponse.isTruncated()).isTrue();
+        String captured = captureResponse.getFullBody();
+        assertThat(captured).startsWith("z".repeat(50));
+        assertThat(captured).endsWith(BodyCaptureResponse.TRUNCATED_MARKER);
+        assertThat(captured).hasSize(50 + BodyCaptureResponse.TRUNCATED_MARKER.length());
+    }
+
+    @Test
+    @DisplayName("should stop accumulating after cap is reached across multiple chunks")
+    void truncatesAcrossChunks() {
+        MockServerHttpResponse delegate = new MockServerHttpResponse();
+        BodyCaptureResponse captureResponse = new BodyCaptureResponse(delegate, 8);
+
+        DataBuffer c1 = bufferFactory.wrap("1234".getBytes(StandardCharsets.UTF_8));
+        DataBuffer c2 = bufferFactory.wrap("5678".getBytes(StandardCharsets.UTF_8));
+        DataBuffer c3 = bufferFactory.wrap("9999".getBytes(StandardCharsets.UTF_8));
+
+        StepVerifier.create(captureResponse.writeWith(Flux.just(c1, c2, c3)))
+                .verifyComplete();
+
+        // Cap was 8; the third chunk should be entirely discarded
+        assertThat(captureResponse.isTruncated()).isTrue();
+        assertThat(captureResponse.getFullBody())
+                .isEqualTo("12345678" + BodyCaptureResponse.TRUNCATED_MARKER);
+    }
+
+    @Test
+    @DisplayName("should not truncate when maxCaptureBytes is 0")
+    void disableTruncation() {
+        MockServerHttpResponse delegate = new MockServerHttpResponse();
+        BodyCaptureResponse captureResponse = new BodyCaptureResponse(delegate, 0);
+
+        String bodyContent = "k".repeat(5000);
+        DataBuffer buffer = bufferFactory.wrap(bodyContent.getBytes(StandardCharsets.UTF_8));
+
+        StepVerifier.create(captureResponse.writeWith(Flux.just(buffer)))
+                .verifyComplete();
+
+        assertThat(captureResponse.isTruncated()).isFalse();
+        assertThat(captureResponse.getFullBody()).isEqualTo(bodyContent);
     }
 }

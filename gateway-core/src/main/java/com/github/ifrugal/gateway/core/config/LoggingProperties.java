@@ -18,6 +18,11 @@ import java.util.stream.Collectors;
  *   logging:
  *     enabled: true
  *     level: info
+ *     max-body-bytes: 65536
+ *     sensitive-headers:
+ *       - Authorization
+ *       - Cookie
+ *       - X-API-Key
  *     requests:
  *       - paths: ["/api/users", "/api/accounts"]
  *         methods: [GET, POST]
@@ -30,6 +35,26 @@ import java.util.stream.Collectors;
 @ConfigurationProperties(prefix = "gateway.logging")
 @Data
 public class LoggingProperties {
+
+    /**
+     * Default cap on the number of bytes captured per request/response body.
+     * 64 KB is large enough for the vast majority of real-world JSON payloads
+     * without exposing the JVM heap to unbounded growth under load.
+     */
+    public static final int DEFAULT_MAX_BODY_BYTES = 64 * 1024;
+
+    /**
+     * Default list of request/response header names that are redacted from
+     * structured log output. Lookup is case-insensitive at runtime.
+     */
+    public static final List<String> DEFAULT_SENSITIVE_HEADERS = List.of(
+            "Authorization",
+            "Cookie",
+            "Set-Cookie",
+            "Proxy-Authorization",
+            "X-API-Key",
+            "X-Auth-Token"
+    );
 
     /**
      * Enable or disable request/response logging.
@@ -46,6 +71,25 @@ public class LoggingProperties {
      * Uses Spring path pattern syntax (Ant-style). If empty, defaults are used.
      */
     private List<String> ignorePaths = new ArrayList<>();
+
+    /**
+     * Maximum number of bytes captured from any single request or response body
+     * for the purposes of logging and caching. Bodies are still forwarded to the
+     * upstream / downstream in full; only the captured copy used by the toolkit
+     * is truncated. A value of {@code 0} disables truncation entirely.
+     *
+     * <p>Set this lower than your effective {@code spring.codec.max-in-memory-size}
+     * — the framework limit is the true ceiling; this property is a finer-grained
+     * cap to keep heap usage proportional under load.
+     */
+    private int maxBodyBytes = DEFAULT_MAX_BODY_BYTES;
+
+    /**
+     * Header names whose values are redacted from structured log output.
+     * Matching is case-insensitive. Set to an empty list to disable redaction
+     * (not recommended for any deployment that handles real credentials).
+     */
+    private List<String> sensitiveHeaders = new ArrayList<>(DEFAULT_SENSITIVE_HEADERS);
 
     /**
      * List of request configurations for logging.

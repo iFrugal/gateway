@@ -19,6 +19,20 @@ class LoggingPropertiesTest {
         assertThat(props.isEnabled()).isTrue();
         assertThat(props.getLevel()).isEqualTo("info");
         assertThat(props.getRequests()).isEmpty();
+        assertThat(props.getMaxBodyBytes()).isEqualTo(LoggingProperties.DEFAULT_MAX_BODY_BYTES);
+        assertThat(props.getMaxBodyBytes()).isEqualTo(64 * 1024);
+        // Default sensitive-header list redacts common credential carriers.
+        assertThat(props.getSensitiveHeaders())
+                .contains("Authorization", "Cookie", "Set-Cookie",
+                        "Proxy-Authorization", "X-API-Key", "X-Auth-Token");
+    }
+
+    @Test
+    @DisplayName("sensitiveHeaders is mutable so users can extend the default list")
+    void sensitiveHeadersIsMutable() {
+        LoggingProperties props = new LoggingProperties();
+        props.getSensitiveHeaders().add("X-Tenant-Secret");
+        assertThat(props.getSensitiveHeaders()).contains("X-Tenant-Secret", "Authorization");
     }
 
     @Test

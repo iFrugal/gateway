@@ -1,127 +1,161 @@
 # Logging Subsystem
 
-The Spring Gateway Toolkit provides a comprehensive request/response logging subsystem designed to capture and track HTTP traffic through the gateway with minimal performance impact. This system integrates structured logging with request caching capabilities through a unified filter.
-
-## Overview
-
-The logging subsystem is built around the `LoggingAndCachingWebFilter`, which operates at the highest precedence level to ensure all requests and responses pass through a consistent logging pipeline. This unified approach enables request body capture for both logging and caching operations.
+`LoggingAndCachingWebFilter` is the toolkit's single hot-path filter. It runs at `Ordered.HIGHEST_PRECEDENCE`, intercepts every request that survives the ignore-path list, and emits structured request/response logs. The same filter handles response caching — body capture happens once and is shared between the two concerns.
 
 ## Configuration
-
-Logging is configured under the `gateway.logging.*` namespace in your application properties:
 
 ```yaml
 gateway:
   logging:
-    enabled: true                    # Enable/disable the logging subsystem
-    level: DEBUG                     # Log level (DEBUG, INFO, WARN, ERROR)
-    ignore-paths:                    # Paths to exclude from logging (Ant-style patterns)
+    enabled: true                # default true
+    level: info                  # default "info"
+    max-body-bytes: 65536        # default 65536 (64 KiB); set 0 to disable truncation
+    sensitive-headers:           # default list — see below
+      - Authorization
+      - Cookie
+      - Set-Cookie
+      - Proxy-Authorization
+      - X-API-Key
+      - X-Auth-Token
+    ignore-paths:                # default: /actuator/health, /swagger-ui/**, /v3/api-docs/**, /swagger-resources/**
       - /actuator/health
       - /swagger-ui/**
-      - /v3/api-docs/**
-    requests:                        # Request-specific logging configuration
-      - paths: /api/users/**
-        methods: GET,POST            # Comma-separated or "*" for all methods
-        exclude-body: false          # Capture request body
-      - paths: /api/auth/login
-        methods: POST
-        exclude-body: true           # Skip body for sensitive endpoints
+    requests:                    # per-route logging rules
+      - paths: ["/api/users/**"]
+        methods: [GET, POST]
+        exclude-body: false      # capture & log request/response body
+      - paths: ["/api/auth/login"]
+        methods: [POST]
+        exclude-body: true       # log everything except the body
 ```
 
-### LoggingProperties
+### `LoggingProperties` fields
 
-The `LoggingProperties` class manages configuration:
-- **enabled**: Toggle the entire logging subsystem (default: `true`)
-- **level**: Logging level for the logger (default: `INFO`)
-- **ignorePaths**: List of Ant-style patterns for endpoints to skip (default: health, swagger, docs endpoints)
-- **requests**: List of `RequestConfig` entries defining per-endpoint logging behavior
+| Property | Default | Notes |
+|---|---|---|
+| `gateway.logging.enabled` | `true` | Master switch for the filter. |
+| `gateway.logging.level` | `"info"` | Reserved for future use; emitted log lines are currently always at `INFO`. |
+| `gateway.logging.max-body-bytes` | `65536` (64 KiB) | Maximum bytes captured into the in-memory copy used for logging and caching. Bodies still flow to upstream / downstream **in full** — only the captured copy is truncated. Set to `0` to disable the cap entirely (legacy behaviour; not recommended). Tune **below** `spring.codec.max-in-memory-size` — the framework limit is the real ceiling and this property is the finer-grained cap. |
+| `gateway.logging.sensitive-headers` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token]` | Header names whose values are replaced with `[REDACTED]` in structured log output. Matching is case-insensitive. Setting an empty list disables redaction. |
+| `gateway.logging.ignore-paths` | health/swagger defaults | Patterns excluded from *both* logging and caching. The filter exits early without wrapping the exchange. |
+| `gateway.logging.requests[]` | `[]` | Per-route rules; see `RequestConfig` below. |
 
-### RequestConfig
+### `RequestConfig`
 
-Each entry in the `requests` list defines logging behavior for specific endpoints:
-- **paths**: Ant-style pattern(s) matching endpoint paths
-- **methods**: Comma-separated HTTP methods or `"*"` to match all methods
-- **excludeBody**: Boolean flag to skip body capture for this endpoint (useful for sensitive data)
+| Property | Notes |
+|---|---|
+| `paths` | Ant-style patterns. A route is matched if any pattern matches the incoming path. |
+| `methods` | List of HTTP methods, or `"*"` for all methods. |
+| `exclude-body` | `false` by default. When `true`, the request/response body is **not** captured for this route — useful for `POST /login` or anything that carries credentials in the body. |
 
-## Features
+## Body capture and the byte cap
 
-### Automatic Request ID
+`BodyCaptureRequest` and `BodyCaptureResponse` are only wired into the exchange when *either* a logging rule with `exclude-body: false` matches *or* a cache rule matches. Routes outside those conditions skip body capture entirely.
 
-Every request receives a unique identifier via the `x-request-id` header:
-- If not present, a new UUID is automatically generated
-- If present, the existing value is preserved
-- The ID is propagated throughout the request/response lifecycle for traceability
+When body capture is active:
 
-### Structured Logging
+- The **request body** is joined into a single `DataBuffer`, decoded to UTF-8, and held in a cached `Mono<String>`. If the decoded byte count exceeds `max-body-bytes`, the cached string contains the first `max-body-bytes` followed by the marker `...[truncated]`.
+- The **response body** is accumulated chunk-by-chunk into a synchronised buffer. Once the byte count reaches `max-body-bytes`, subsequent chunks are not retained in the captured copy (they still stream to the client). The captured string ends in `...[truncated]` and `getResponse().isTruncated()` returns `true`.
 
-All logging output follows a consistent structure containing:
+The cap is per-request, per-response. It is **not** a global limit. With a 64 KiB cap and 1000 concurrent in-flight requests that all hit body capture, the upper bound on body-capture heap is ~64 MiB — predictable and bounded.
 
+### Disabling truncation
+
+Set `gateway.logging.max-body-bytes: 0` if you genuinely need full bodies in logs. Be aware this restores the pre-`1.1.0` unbounded behaviour: a 100 MiB upload will hold a 100 MiB Java `String` for the lifetime of the request. The framework limit (`spring.codec.max-in-memory-size`) still applies above this cap.
+
+## Automatic request ID
+
+Every request gets an `x-request-id` header:
+
+- If the client supplied one, it is preserved verbatim and emitted in all log lines for the request.
+- If not, the filter mutates the request to add a fresh `UUID.randomUUID()` before any downstream filter sees it.
+
+The same `x-request-id` is included in both the request and response log entries — use it to join the two.
+
+## Sensitive-header redaction
+
+The filter copies the request headers into a fresh map before logging, then replaces the values for any name in `gateway.logging.sensitive-headers` with the single-element list `["[REDACTED]"]`. The match is case-insensitive: configuring `Authorization` redacts `Authorization`, `authorization`, and `AUTHORIZATION` equally.
+
+**Defaults** redact:
+
+- `Authorization`
+- `Cookie`
+- `Set-Cookie`
+- `Proxy-Authorization`
+- `X-API-Key`
+- `X-Auth-Token`
+
+**Extending the list** — add your application's secret-carrying headers to the YAML:
+
+```yaml
+gateway:
+  logging:
+    sensitive-headers:
+      - Authorization
+      - Cookie
+      - Set-Cookie
+      - Proxy-Authorization
+      - X-API-Key
+      - X-Auth-Token
+      - X-Tenant-Secret      # your custom header
+      - X-Signature
 ```
-timestamp        : ISO-8601 formatted request timestamp
-requestId        : Unique request identifier (UUID or existing header value)
-method           : HTTP method (GET, POST, PUT, DELETE, etc.)
-path             : Request URI path
-queryParams      : Query string parameters (if present)
-headers          : Request headers with sensitive data removed
-body             : Request body (unless excluded via config)
-status           : HTTP response status code
-durationMs       : Total request/response duration in milliseconds
-```
 
-**Note**: Sensitive headers (Authorization, Cookie, X-API-Key, etc.) are automatically redacted from logs to prevent credential exposure.
+The redacted map is what the filter logs; the original headers reach the upstream service unmodified.
 
-## Body Capture Classes
+## Body-capture classes
 
-The subsystem provides specialized classes for reactive body capture:
+The three classes that implement the capture are public for advanced extension:
 
-- **BodyCaptureRequest**: Wraps ServerHttpRequest to capture and buffer the request body without consuming the stream
-- **BodyCaptureResponse**: Wraps ServerHttpResponse to capture the response body
-- **BodyCaptureExchange**: Combines both request and response body capture into a single exchange wrapper
+| Class | Decorates | Notes |
+|---|---|---|
+| `BodyCaptureRequest` | `ServerHttpRequest` | Provides `getFullBodyAsync()` (returns `Mono<String>`). The synchronous `getFullBody()` is `@Deprecated(forRemoval = true)` — it returns `""` if called before the body has arrived. Use the async variant. |
+| `BodyCaptureResponse` | `ServerHttpResponse` | Accumulates bytes under a `synchronized` lock; safe under any Reactor scheduling pattern. Exposes `getFullBody()` and `isTruncated()`. |
+| `BodyCaptureExchange` | `ServerWebExchange` | Pairs the two wrappers above with a shared `maxCaptureBytes`. |
 
-These classes enable non-destructive body inspection—the body is captured for logging/caching while remaining fully available for downstream processing.
+If you need to subclass any of these, prefer constructor injection of the byte cap so your subclass honours the global `gateway.logging.max-body-bytes` setting.
 
-## Ignore Paths
+## Default ignore-paths
 
-By default, the following paths are excluded from logging to reduce noise:
+When `gateway.logging.ignore-paths` is empty (the default), the filter applies a built-in list:
 
-- `/actuator/health` — Kubernetes/infrastructure health checks
-- `/swagger-ui/**` — Swagger UI static resources
-- `/v3/api-docs/**` — OpenAPI specification endpoints
-- `/metrics/**` — Prometheus/actuator metrics
+- `/actuator/health`
+- `/actuator/health/ping`
+- `/swagger-ui/**`
+- `/v3/api-docs/**`
+- `/swagger-resources/**`
 
-Override these defaults via the `gateway.logging.ignore-paths` property to customize which endpoints are logged.
+Providing a non-empty `ignore-paths` value **replaces** the built-in list — there is no additive merge. Re-include the defaults explicitly if you want to keep them.
 
-## Integration with Caching
+## Structured log shape
 
-The `LoggingAndCachingWebFilter` operates as a single unified filter handling both logging and caching:
-- Request/response bodies are captured once and reused by both subsystems
-- Eliminates duplicate body buffering and improves performance
-- Operates at `HIGHEST_PRECEDENCE` to intercept all traffic
+Each log line is a Java `Map` serialised by SLF4J's default formatter (Logback's JSON encoder, in `gateway-app`'s default profile, produces machine-parseable output). Fields:
 
-## Performance Considerations
+| Field | Notes |
+|---|---|
+| `timestamp` | ISO-8601 instant captured at log emission. |
+| `requestId` | The `x-request-id` for this request. |
+| `method`, `path`, `queryParams` | Incoming request. |
+| `headers` | Sensitive headers replaced with `[REDACTED]`. |
+| `body` | Request or response body, possibly with the `...[truncated]` marker. Omitted entirely when `exclude-body: true` or when the body is empty/blank. |
+| `status` | Response status code. |
+| `durationMs` | Elapsed time from the filter receiving the request to the chain completing. |
 
-- Logging has minimal overhead for excluded paths (early termination)
-- Request body capture only occurs for configured endpoints
-- Structured logging uses async appenders to avoid blocking request processing
-- Consider excluding high-traffic, low-value endpoints from detailed logging
+Two log lines are emitted per request: `Request: {…}` before the chain proceeds, `Response: {…}` after.
 
-## Example Output
+## Performance notes
 
-```
-timestamp=2026-02-25T14:32:15.123Z
-requestId=550e8400-e29b-41d4-a716-446655440000
-method=POST
-path=/api/users
-queryParams=
-headers={Accept=application/json, Content-Type=application/json}
-body={"name":"John Doe","email":"john@example.com"}
-status=201
-durationMs=45
-```
+- Routes excluded by `ignore-paths` short-circuit at the top of the filter — no decoration, no logging.
+- Routes that match a logging rule with `exclude-body: true` and no cache rule still skip body capture entirely; only `headers` + `status` + `durationMs` are logged.
+- With `max-body-bytes` at the default 64 KiB, the per-request heap cost of a logged-body request is approximately `64 KiB` (request copy) `+ 64 KiB` (response copy). Set this lower on memory-constrained deployments; set it higher only if you genuinely log full payloads.
+- The filter does not buffer logs — emission is synchronous via SLF4J. Configure your logging backend's appenders (async, batched, etc.) at the SLF4J/Logback layer.
 
 ## Troubleshooting
 
-- **Missing request IDs**: Ensure `LoggingAndCachingWebFilter` is properly registered as a bean
-- **Body data not captured**: Verify the endpoint path matches a `RequestConfig` pattern and `exclude-body: false`
-- **Sensitive data in logs**: Check that custom headers are added to the redaction list if needed
-- **Performance degradation**: Review `ignore-paths` configuration to exclude high-frequency endpoints
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| No log lines at all | `gateway.logging.enabled: false`, or path matches `ignore-paths` | Flip the flag; check the path. |
+| `requestId` missing | Filter not registered; check `@AutoConfiguration` import | Verify `gateway-starter` is on the classpath; the filter has `@ConditionalOnMissingBean` so a user-registered override may have replaced it. |
+| Bodies empty in logs | `exclude-body: true` for the matching rule, OR request body never arrived | Inspect the matching `RequestConfig`; if you see `...[truncated]` instead of empty, the cap is firing as expected. |
+| `...[truncated]` showing up for "small" bodies | `max-body-bytes` is too low for your traffic shape | Increase the property; or accept the truncation. |
+| Custom secret header leaking | Header is not in `sensitive-headers` | Add it to the YAML list — see "Extending the list" above. |
