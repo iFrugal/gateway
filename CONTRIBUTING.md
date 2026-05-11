@@ -28,8 +28,8 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ### Prerequisites
 
-- Java 21+
-- Maven 3.8+
+- Java 25 LTS or later
+- Maven 3.9+
 - Docker (optional, for integration testing)
 
 ### Building

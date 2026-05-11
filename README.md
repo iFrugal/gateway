@@ -176,8 +176,8 @@ mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN
 
 ## Requirements
 
-- Java 21+
-- Maven 3.8+
+- Java 25 LTS or later
+- Maven 3.9+
 - Docker (optional)
 
 ## Quality

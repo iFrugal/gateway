@@ -5,7 +5,7 @@
 # =============================================================================
 
 # Stage 1: Build
-FROM maven:3.9-eclipse-temurin-21-alpine AS builder
+FROM maven:3.9-eclipse-temurin-25-alpine AS builder
 
 WORKDIR /build
 
@@ -27,7 +27,7 @@ COPY gateway-app/src gateway-app/src
 RUN mvn clean package -DskipTests -B
 
 # Stage 2: Runtime
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 
 LABEL maintainer="Spring Gateway Toolkit"
 LABEL description="Spring Cloud Gateway with logging, caching, and mock API framework"
