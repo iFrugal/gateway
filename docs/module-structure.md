@@ -1,351 +1,133 @@
-# Spring Gateway Toolkit - Module Structure Deep-Dive
+# Module Structure — Deep Dive
 
-This document provides a comprehensive overview of the Spring Gateway Toolkit's architecture, module organization, and extension points.
+This page maps the Maven modules, the public packages inside each module, and the extension points a library user is most likely to reach for. Use it alongside the per-feature docs ([caching](caching.md), [logging](logging.md), [conman](conman.md), [security](security.md)).
 
-## Project Layout
-
-The toolkit is organized as a Maven multi-module project with three core modules:
+## Project layout
 
 ```
 spring-gateway-toolkit/
-├── gateway-core/           # Core library with all business logic
-├── gateway-starter/        # Spring Boot auto-configuration starter
-├── gateway-app/            # Standalone runnable application
-└── docker/                 # Docker deployment artifacts
+├── gateway-core/        # Filters, cache providers, Conman, config properties
+├── gateway-starter/     # @AutoConfiguration only — no business logic
+├── gateway-app/         # Runnable Spring Boot demo (Docker image source)
+└── docker/              # Dockerfile + docker-compose for gateway-app
 ```
 
-## Gateway-Core Module
+The dependency arrow runs one way:
 
-The **gateway-core** module contains the core functionality and is the heart of the toolkit.
-
-### Package Organization
-
-#### 1. `com.github.ifrugal.gateway.core.annotation`
-Provides annotation-based configuration.
-
-**Key Classes:**
-- `EnableGatewayToolkit` - Main annotation for enabling toolkit features with attribute toggles
-  - `enableLogging()` - Toggle request/response logging
-  - `enableCaching()` - Toggle response caching
-  - `enableConman()` - Toggle mock API framework
-- `GatewayToolkitImportSelector` - ImportSelector implementation for conditional bean registration
-
-**Usage Example:**
-```java
-@EnableGatewayToolkit(enableLogging = true, enableCaching = true)
+```
+gateway-app  →  gateway-starter  →  gateway-core
 ```
 
-#### 2. `com.github.ifrugal.gateway.core.cache`
-Cache provider abstraction and implementations.
+`gateway-core` has no Spring Boot auto-configuration of its own — it is plain Spring + WebFlux + Reactor and can be consumed by a non-starter Spring application that wires the beans manually. Most users should consume `gateway-starter` instead.
 
-**Key Classes:**
-- `CacheProvider` (interface) - Abstraction for cache implementations
-  - `get(key)` - Retrieve cached values reactively
-  - `put(key, value, ttlSeconds)` - Store with TTL
-  - `invalidate(key)` - Remove specific entries
-  - `getInternalKeys()` - Retrieve cache metadata
-  - `clear()` - Clear all entries
-- `CaffeineProvider` - Production cache using Caffeine library
-  - Supports TTL-based expiration
-  - Configurable max size
-  - Thread-safe and reactive
-- `NoOpCacheProvider` - No-operation cache for disabled caching
+## gateway-core
 
-**Extension Point:** Implement `CacheProvider` to use custom cache backends (Redis, Memcached, etc.).
+### `com.github.ifrugal.gateway.core.annotation`
 
-#### 3. `com.github.ifrugal.gateway.core.config`
-Configuration properties for all toolkit features.
+| Class | Purpose |
+|---|---|
+| `EnableGatewayToolkit` | Convenience annotation with three boolean attributes (`enableLogging`, `enableCaching`, `enableConman`, all defaulting to `true`). Adds those values as the **lowest-precedence** `PropertySource` via `GatewayToolkitImportSelector`, so YAML / env vars override. The annotation is **not required** — the starter auto-loads from `META-INF/spring/...AutoConfiguration.imports` regardless. |
+| `GatewayToolkitImportSelector` | Implements `ImportSelector`; reads the annotation attributes and registers them as a property source named `gateway-toolkit-annotation-defaults`. |
 
-**Key Classes:**
-- `LoggingProperties` - Request/response logging configuration
-  - `enabled` - Enable/disable logging
-  - `level` - Log level (DEBUG, INFO, WARN)
-  - `ignorePaths` - Paths to exclude from logging
-- `CachingProperties` - Cache configuration
-  - `enabled` - Enable/disable caching
-  - `maxSize` - Maximum cache entries (default: 1000)
-  - `defaultTtl` - Default TTL in seconds (default: 300)
-- `CorsProperties` - CORS configuration
-  - `enabled` - Enable/disable CORS filter
-  - `allowedOrigins` - List of allowed origins
-  - `allowedMethods` - Allowed HTTP methods
-  - `allowedHeaders` - Allowed request headers
-  - `exposedHeaders` - Response headers exposed to clients
-  - `maxAge` - Preflight cache duration
-- `SecurityProperties` - OAuth2 and authentication configuration
-  - `enabled` - Enable/disable security
-  - `oauth2` - OAuth2 provider and client configuration
-  - `guestAllowedPaths` - Paths that bypass authentication
+### `com.github.ifrugal.gateway.core.cache`
 
-#### 4. `com.github.ifrugal.gateway.core.conman`
-Mock API framework (Conman) for testing and development.
+| Class | Notes |
+|---|---|
+| `CacheProvider` | SPI interface. Returns `Mono<Optional<String>>` for `get`, `Mono<Void>` for `put`/`invalidate`/`clear`, `Map<String, Object>` for `getInternalKeys`. |
+| `CaffeineProvider` | Backed by Caffeine's `expireAfter` for per-entry TTL. Auto-configured when `gateway.caching.enabled=true` and no other `CacheProvider` bean is present. |
+| `NoOpCacheProvider` | Returns `Optional.empty()` from every `get` and silently swallows `put`. Auto-configured when `gateway.caching.enabled` is unset and no other `CacheProvider` bean is present, so `LoggingAndCachingWebFilter` always has something to talk to. |
 
-**Key Classes:**
-- `ConmanProperties` - Mock API configuration
-  - `enabled` - Enable/disable mock API
-  - `servletUriMappings` - URI patterns for mock endpoints
-  - Mock data directory configuration
-- `ConmanCache` - In-memory cache for mock configurations
-  - Loads mock definitions from YAML
-  - Matches requests to mock responses
-  - Supports response templating
-- `ConmanServlet` - HTTP servlet handling mock requests
-  - Processes incoming mock requests
-  - Returns configured responses
-- `ConmanAdminController` - REST API for managing mocks at runtime
-  - List active mocks
-  - Add/update mock configurations
-  - Delete mocks
-  - Reload from files
+**Extension point.** Register a `@Bean` of type `CacheProvider` in your application config; the Caffeine bean is `@ConditionalOnMissingBean(CacheProvider.class)` and will step aside. See [caching.md](caching.md) for a reactive Redis example.
 
-#### 5. `com.github.ifrugal.gateway.core.conman.validation`
-Request validation for mock APIs.
+### `com.github.ifrugal.gateway.core.config`
 
-**Key Classes:**
-- `RequestValidator` - Validates incoming requests against JSON Schema
-  - Schema-based validation
-  - Detailed error reporting
-  - Integration with mock framework
+`@ConfigurationProperties` classes (all `@Data`, no JSR-380 validation):
 
-#### 6. `com.github.ifrugal.gateway.core.controller`
-REST controllers for toolkit management.
+| Class | Prefix | Notable fields & defaults |
+|---|---|---|
+| `LoggingProperties` | `gateway.logging` | `enabled=true`, `level="info"`, `ignorePaths=[]`, `requests=[]`. Nested `RequestConfig` holds `paths`, `methods`, `excludeBody=false`. |
+| `CachingProperties` | `gateway.caching` | `enabled=false`, `provider="caffeine"`, `defaultTtl=86400` (1 day), `maxSize=10000`, `rules=[]`. Nested `CacheRuleConfig` holds `paths`, `methods`, `ttl`. |
+| `CorsProperties` | `gateway.cors` | `enabled=true`, `allowedMethods=["GET","POST","PUT","PATCH","DELETE","OPTIONS"]`, `allowedHeaders=["*"]`, `maxAge=3600`, `allowCredentials=true`. |
+| `SecurityProperties` | `gateway.security` | `enabled=false`, `guestAllowedPaths=[]`, nested `oauth2.{provider, client}` blocks. |
 
-**Key Classes:**
-- `CacheController` - Endpoints for cache management
-  - GET `/gateway/cache` - List cache statistics
-  - GET `/gateway/cache/keys` - List all cache keys
-  - DELETE `/gateway/cache/{key}` - Invalidate specific cache entry
-  - DELETE `/gateway/cache` - Clear entire cache
+### `com.github.ifrugal.gateway.core.conman`
 
-#### 7. `com.github.ifrugal.gateway.core.filter`
-WebFilter implementations for request/response processing.
+| Class | Notes |
+|---|---|
+| `ConmanProperties` (`gateway.conman`) | `enabled=false`, `servletUriMappings=["/mock/**"]`, `mappingFiles=["classpath:conman.yml"]`, `bannerPath="classpath:conman-banner.txt"`. **The tenant header name is hardcoded** in `ConmanServlet` as the literal `"tenant-id"` — there is no property for it on this class today. |
+| `ConmanCache` | Holds `MockConfig` entries in a `ConcurrentHashMap` keyed by `{METHOD}_{URI}_{tenantId}`. Loaded eagerly from `mappingFiles` at startup; can be reloaded via the admin REST API. |
+| `ConmanServlet` | **Not a servlet** — historical name. A Spring-managed reactive handler returning `Mono<ServerResponse>`, registered via a `RouterFunction` in `GatewayToolkitAutoConfiguration`. |
+| `MockConfig` | YAML-bound POJO. Fields: `tenantId`, `tenantIds`, `request`, `response`. No `name` field. See [conman.md](conman.md) for the full structure. |
+| `ConmanAdminController` | `@RestController` at `/conman/admin`. Endpoints: `POST /register` (multipart, max 1 MB), `GET /mocks`, `POST /reload`, `DELETE /mocks`, `GET /test`. |
 
-**Key Classes:**
-- `LoggingAndCachingWebFilter` - Main filter for logging and caching
-  - Captures and logs request/response details
-  - Implements response caching logic
-  - Configurable path exclusions
-  - Performance-optimized with minimal overhead
-- `BodyCaptureRequest` - Request wrapper for reading body multiple times
-- `BodyCaptureResponse` - Response wrapper for body interception
-- `BodyCaptureExchange` - Serverless exchange wrapper
+### `com.github.ifrugal.gateway.core.conman.validation`
 
-#### 8. `com.github.ifrugal.gateway.core.filter.utils`
-Utility classes for filter operations.
+| Class | Notes |
+|---|---|
+| `RequestValidator` | Static utility. Validates request headers, query params, and body against the `MockConfig.RequestValidation` rules; bodies are validated with `networknt/json-schema-validator`. Always releases `DataBuffer` in a `finally`; times the body read out at 5 seconds. |
 
-**Key Classes:**
-- `RequestMatcher` - Path pattern matching for filters
-  - Ant-style pattern matching
-  - Efficient prefix/suffix checks
+### `com.github.ifrugal.gateway.core.controller`
 
-## Gateway-Starter Module
+| Class | Notes |
+|---|---|
+| `CacheController` | `@RestController` at `/gateway/cache`. `@ConditionalOnBean(CacheProvider.class)` so it only loads when a cache is configured. Endpoints: `GET /{key}`, `POST /{key}?value=…&ttlSeconds=…`, `DELETE /{key}`, `GET /` (lists all keys with metadata), `DELETE /` (clears the cache). |
 
-The **gateway-starter** module provides Spring Boot auto-configuration for easy integration.
+### `com.github.ifrugal.gateway.core.filter`
 
-### Key Classes
+| Class | Notes |
+|---|---|
+| `LoggingAndCachingWebFilter` | The hot-path filter. `Ordered.HIGHEST_PRECEDENCE`. Decides per request whether to capture bodies (only when a logging rule with `excludeBody=false` or a cache rule matches), serves from cache on hit, logs the request/response on miss. |
+| `BodyCaptureRequest` | `ServerHttpRequestDecorator`. Eagerly joins the request body into a cached `Mono<String>` so it can be replayed to downstream filters and read for logging. Currently no size cap — see the architecture review for known memory-pressure concerns. |
+| `BodyCaptureResponse` | `ServerHttpResponseDecorator`. Accumulates response bytes into a `StringBuilder` for cache storage and logging. |
+| `BodyCaptureExchange` | `ServerWebExchangeDecorator` that pairs the two wrappers above. |
 
-#### `GatewayToolkitAutoConfiguration`
-Main auto-configuration class (@AutoConfiguration).
+### `com.github.ifrugal.gateway.core.filter.utils`
 
-**Responsibilities:**
-- Registers configuration properties beans
-- Conditionally creates cache provider beans
-- Configures logging and caching web filter
-- Sets up CORS filter
-- Handles Conman mock API configuration
+| Class | Notes |
+|---|---|
+| `RequestMatcher` | Static utility for Ant-style path matching + HTTP-method matching. Used by both logging-rule and caching-rule lookups. Not currently designed as an extension point — if you need custom matching logic, replace `LoggingAndCachingWebFilter` outright (it is `@ConditionalOnMissingBean`). |
 
-**Conditional Bean Registration:**
-```java
-@ConditionalOnProperty(prefix = "gateway.caching", name = "enabled", havingValue = "true")
-public CacheProvider caffeineProvider(CachingProperties cachingProperties)
+## gateway-starter
 
-@ConditionalOnProperty(prefix = "gateway.cors", name = "enabled", havingValue = "true")
-public WebFilter gatewayCorsFilter(CorsProperties corsProperties)
+Spring Boot starter. **No business logic** — every class here exists to wire `gateway-core` beans into a Spring application based on `gateway.*.enabled` flags.
 
-@ConditionalOnProperty(prefix = "gateway.conman", name = "enabled", havingValue = "true")
-public static class ConmanAutoConfiguration { ... }
-```
+| Class | Conditions | What it registers |
+|---|---|---|
+| `GatewayToolkitAutoConfiguration` | always loads (listed in `AutoConfiguration.imports`) | `CaffeineProvider` (when caching enabled + no other `CacheProvider` bean), `NoOpCacheProvider` (fallback, no other `CacheProvider` bean), `LoggingAndCachingWebFilter` (no existing bean), `CorsWebFilter` (when CORS enabled or `matchIfMissing`), nested `ConmanAutoConfiguration` (when Conman enabled — registers `ConmanCache`, `ConmanServlet`, and the `RouterFunction` that maps `servletUriMappings` to the servlet). |
+| `SecurityAutoConfiguration` | `@ConditionalOnClass(SecurityWebFilterChain.class)` + `@ConditionalOnProperty(... matchIfMissing=false)` | `SecurityWebFilterChain` with hardcoded `.authenticated()` for `/gateway/cache/**` and `/conman/admin/**`, hardcoded permits for the actuator + swagger paths, then user-supplied `guest-allowed-paths`. Also wires the Swagger UI `OpenAPI` bean when OAuth2 is enabled. |
 
-#### `SecurityAutoConfiguration`
-Security auto-configuration for OAuth2 and authentication.
-
-**Responsibilities:**
-- Configures Spring Security FilterChain when enabled
-- Sets up OAuth2 resource server with JWT
-- Protects admin endpoints (/gateway/cache/**, /conman/admin/**)
-- Configures OpenAPI/Swagger security schemes
-- Provides authentication entry points
-
-**Key Features:**
-- Admin endpoints always require authentication
-- Guest paths configurable via `gateway.security.guest-allowed-paths`
-- OAuth2 flow integration with Swagger UI
-- Automatic redirect to OAuth2 login for protected resources
-
-### META-INF Configuration
-
-**File:** `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
+### `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
 
 ```
 com.github.ifrugal.gateway.autoconfigure.GatewayToolkitAutoConfiguration
 com.github.ifrugal.gateway.autoconfigure.SecurityAutoConfiguration
 ```
 
-This file registers auto-configurations for Spring Boot to discover and apply automatically.
+This is what makes the starter "auto-configure" — Spring Boot reads the file at boot, instantiates each listed `@AutoConfiguration` class, and the per-bean `@ConditionalOn*` annotations decide what actually loads.
 
-## Gateway-App Module
+## gateway-app
 
-The **gateway-app** module is a standalone, fully-configured Spring Boot Gateway application.
+Runnable demo + Docker image source.
 
-### Key Class
+- `GatewayApplication` — `@SpringBootApplication` with an `OperationCustomizer` that injects three documentation headers (`x-request-id`, `x-user-id`, `x-role`) into every OpenAPI operation. That's the entirety of the application code; everything else is wired by the starter.
+- Profiles shipped as resources: `application.yml` (base), `application-eureka.yml`, `application-consul.yml`, `application-static.yml`. Activate via `--spring.profiles.active=eureka` (etc.) or `SPRING_PROFILES_ACTIVE`. There is no `application-docker.yml` inside this module — the Docker setup overlays its own file via `--spring.config.additional-location=file:/app/config/`, see [deployment.md](deployment.md).
 
-#### `GatewayApplication`
-Main Spring Boot application class.
+## Extension points — quick reference
 
-**Features:**
-- Ready-to-run gateway application
-- OpenAPI/Swagger UI aggregation
-- Custom OpenAPI operation customizer for common headers
-- Multiple profile support (default, eureka, consul, docker, static)
-- Built-in Conman mock API framework
-- Request/response logging
-- Response caching
-- OAuth2 security integration
+| What you want to do | How |
+|---|---|
+| Use a different cache backend | Register a `@Bean CacheProvider`. Caffeine bean steps aside via `@ConditionalOnMissingBean`. |
+| Replace the body-capture filter | Register a `@Bean LoggingAndCachingWebFilter`. Default bean steps aside via `@ConditionalOnMissingBean`. |
+| Add additional `WebFilter`s | Register them with a lower precedence than `Ordered.HIGHEST_PRECEDENCE` so they see the body-capture decorators. |
+| Add your own configuration | Add a `@ConfigurationProperties("gateway.x")` class on the consumer side. The toolkit will not interfere. |
+| Add custom REST endpoints | Standard Spring `@RestController` in your application. Keep them outside `/gateway/cache/**` and `/conman/admin/**` to avoid the hardcoded auth rules. |
+| Customize OAuth2 protection | Set `gateway.security.enabled=false` and register your own `SecurityWebFilterChain` bean. The toolkit's chain is `@ConditionalOnMissingBean(SecurityWebFilterChain.class)`. |
 
-**Configuration Profiles:**
-- `application.yml` - Default configuration
-- `application-eureka.yml` - Eureka service discovery
-- `application-consul.yml` - Consul service discovery
-- `application-static.yml` - Static route configuration
+## Build & test
 
-## Dependency Flow
-
-```
-gateway-app
-    ↓
-    └── depends on → gateway-starter
-                        ↓
-                        └── depends on → gateway-core
-                                           ↓
-                                           └── Spring Cloud Gateway
-                                           └── Spring Boot WebFlux
-```
-
-**Dependency Layers:**
-
-1. **gateway-core** (Library)
-   - No Spring Boot application dependency
-   - Core abstractions and implementations
-   - Can be used independently in other projects
-
-2. **gateway-starter** (Spring Boot Starter)
-   - Depends on gateway-core
-   - Provides auto-configuration
-   - Automatically discovered by Spring Boot
-   - Can be added as a library dependency
-
-3. **gateway-app** (Application)
-   - Depends on gateway-starter
-   - Fully functional, standalone application
-   - Can be run directly or containerized
-
-## Extension Points
-
-### 1. Custom Cache Provider
-
-Implement `CacheProvider` interface for custom cache backends:
-
-```java
-public class RedisStreamCacheProvider implements CacheProvider {
-    @Override
-    public Mono<Optional<String>> get(String key) {
-        // Redis implementation
-    }
-
-    @Override
-    public Mono<Void> put(String key, String value, long ttlSeconds) {
-        // Redis implementation
-    }
-
-    // ... implement other methods
-}
-```
-
-Register in Spring configuration:
-```java
-@Configuration
-public class CacheConfiguration {
-    @Bean
-    public CacheProvider cacheProvider() {
-        return new RedisStreamCacheProvider();
-    }
-}
-```
-
-### 2. Custom WebFilter
-
-Create custom filters for additional processing:
-
-```java
-public class CustomSecurityWebFilter implements WebFilter {
-    @Override
-    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        // Custom logic
-        return chain.filter(exchange);
-    }
-}
-```
-
-### 3. Custom Properties
-
-Extend configuration by creating new `@ConfigurationProperties` classes:
-
-```java
-@ConfigurationProperties(prefix = "gateway.custom")
-public class CustomProperties {
-    private boolean enabled = true;
-    private String apiKey;
-    // getters/setters
-}
-```
-
-### 4. Custom Controllers
-
-Add REST endpoints to the `gateway-core` module:
-
-```java
-@RestController
-@RequestMapping("/gateway/custom")
-public class CustomController {
-    @GetMapping("/status")
-    public Mono<Map<String, String>> status() {
-        // Custom endpoint logic
-    }
-}
-```
-
-### 5. Conman Mock Extensions
-
-Extend mock API capabilities:
-- Custom response transformers
-- Request validators
-- Template processors
-
-## Build and Testing
-
-**Build:** All modules built with `mvn clean install`
-
-**Testing:** Unit tests in each module under `src/test/java`
-
-**Code Coverage:** JaCoCo reports generated in `target/site/jacoco/`
-
-**Documentation:** Javadoc generated for all public APIs
-
-## Best Practices
-
-1. **Security:** Always enable `gateway.security.enabled: true` in production
-2. **Caching:** Tune `maxSize` and `defaultTtl` based on traffic patterns
-3. **Logging:** Disable DEBUG logging in production; use ignore-paths for high-volume endpoints
-4. **Extension:** Implement `CacheProvider` for production cache backends like Redis
-5. **Docker:** Use the provided multi-stage Dockerfile for optimized images
-6. **Monitoring:** Enable Actuator endpoints for health checks and metrics
+| Command | Effect |
+|---|---|
+| `./mvnw -B clean verify` | Compile, run tests, generate JaCoCo coverage under each module's `target/site/jacoco/`. |
+| `./mvnw -B clean install -pl gateway-core,gateway-starter` | Build only the library artefacts (skip the runnable app). |
+| `./mvnw -B -DskipTests=true sonar:sonar` | Run SonarCloud analysis locally (requires `SONAR_TOKEN`). |
+| `./mvnw -B org.apache.maven.plugins:maven-dependency-plugin:3.9.0:analyze` | Find undeclared/unused dependencies. The 3.9.0 pin is required for JDK 25 — earlier versions can't read the bytecode. |

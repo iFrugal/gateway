@@ -15,7 +15,7 @@ Complete configuration reference for all Spring Gateway Toolkit properties. All 
 
 ### Logging Configuration (gateway.logging.*)
 
-Request and response logging for all passing through the gateway.
+Request and response logging for traffic flowing through the gateway. The filter is registered with `Ordered.HIGHEST_PRECEDENCE` and only wraps the exchange in body-capture decorators when a logging rule with `exclude-body: false` or a cache rule matches the request.
 
 | YAML Property | Environment Variable | Default | Description |
 |---|---|---|---|
@@ -53,7 +53,7 @@ Response caching with Caffeine provider support.
 | YAML Property | Environment Variable | Default | Description |
 |---|---|---|---|
 | `gateway.caching.enabled` | `GATEWAY_CACHING_ENABLED` | `false` | Enable/disable response caching |
-| `gateway.caching.provider` | `GATEWAY_CACHING_PROVIDER` | `caffeine` | Cache provider (only caffeine supported) |
+| `gateway.caching.provider` | `GATEWAY_CACHING_PROVIDER` | `caffeine` | Cache provider name. Only `caffeine` is shipped in-tree. The `CacheProvider` interface is an SPI — register a `@Bean` of type `CacheProvider` to substitute another backend (Redis, Hazelcast, etc.); the auto-configured Caffeine bean is gated on `@ConditionalOnMissingBean`. |
 | `gateway.caching.default-ttl` | `GATEWAY_CACHE_DEFAULT_TTL` | `86400` | Default TTL in seconds (1 day) |
 | `gateway.caching.max-size` | `GATEWAY_CACHE_MAX_SIZE` | `10000` | Maximum cache entries |
 | `gateway.caching.rules[].paths` | - | - | Ant-style path patterns |
@@ -139,10 +139,10 @@ OAuth2 authentication, path-based access control, and JWT validation.
 | `gateway.security.oauth2.client.scopes` | `OAUTH2_SCOPES` | `openid,profile,email` | OAuth2 scopes (comma-separated) |
 | `gateway.security.oauth2.client.redirect-uri` | - | `{baseUrl}/swagger-ui/oauth2-redirect.html` | OAuth2 redirect URI |
 
-**Access Control Rules:**
-- **Always Protected:** `/gateway/cache/**`, `/conman/admin/**`
-- **Always Public:** `/`, `/actuator/health`, `/oauth2/**`, `/swagger-ui/**`, `/v3/api-docs/**`, all `OPTIONS` requests
-- **Guest Paths:** Configurable via `guest-allowed-paths`
+**Access Control Rules (hardcoded in `SecurityAutoConfiguration`):**
+- **Always Protected** (cannot be overridden by `guest-allowed-paths`): `/gateway/cache/**`, `/conman/admin/**`
+- **Always Public** (hardcoded `.permitAll()` list): `/`, `/actuator/health`, `/actuator/info`, `/oauth2/**`, `/login/**`, `/swagger-ui.html`, `/swagger-ui/**`, `/swagger-resources/**`, `/v3/api-docs/**`, `/api-docs/**`, `/swagger-ui/oauth2-redirect.html`, and all `OPTIONS` requests (for CORS preflight)
+- **Guest Paths:** Whatever you put under `guest-allowed-paths` is added to the public list at startup
 - **All Other Paths:** Require authentication
 
 **Example Configuration:**
@@ -177,10 +177,12 @@ Configuration for the Conman mock API framework for testing and development.
 
 | YAML Property | Environment Variable | Default | Description |
 |---|---|---|---|
-| `gateway.conman.enabled` | `GATEWAY_CONMAN_ENABLED` | `false` | Enable/disable Conman mock APIs |
-| `gateway.conman.servlet-uri-mappings` | `GATEWAY_CONMAN_SERVLET_URI_MAPPINGS` | `[/mock/**]` | URI patterns for mock servlet |
-| `gateway.conman.mapping-files` | - | `[classpath:conman.yml]` | Mock configuration files (classpath) |
-| `gateway.conman.banner-path` | - | `classpath:conman-banner.txt` | Path to Conman banner file |
+| `gateway.conman.enabled` | `GATEWAY_CONMAN_ENABLED` | `false` | Enable/disable Conman mock APIs. Auto-configuration is `@ConditionalOnProperty(havingValue="true")` — if unset, no Conman beans load. |
+| `gateway.conman.servlet-uri-mappings` | `GATEWAY_CONMAN_SERVLET_URI_MAPPINGS` | `[/mock/**]` | Ant patterns the Conman reactive handler intercepts. |
+| `gateway.conman.mapping-files` | - | `[classpath:conman.yml]` | YAML files loaded at startup. Each file is a top-level list of `MockConfig` entries — see [conman.md](conman.md). |
+| `gateway.conman.banner-path` | - | `classpath:conman-banner.txt` | Optional ASCII banner shown in logs on startup. |
+
+> **Tenant header is hardcoded.** Conman reads the tenant from the literal request header `tenant-id` — there is no `gateway.conman.tenant-id-header` property today. Setting one in YAML has no effect. See [conman.md — Known gaps](conman.md#known-gaps).
 
 **Example Configuration:**
 ```yaml
