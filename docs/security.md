@@ -2,13 +2,16 @@
 
 ## Overview
 
-The Spring Gateway Toolkit provides comprehensive security features including OAuth2 Resource Server (JWT) authentication, OAuth2 Login, path-based access control, and CORS configuration. Security is configured through the `SecurityAutoConfiguration` class and managed via properties under `gateway.security.*`.
+Spring Gateway Toolkit offers OAuth2 Resource Server (JWT) authentication, OAuth2 Login, path-based access control, and CORS configuration. All of it is configured via `gateway.security.*` properties and applied by `SecurityAutoConfiguration`.
+
+> **Security is OFF by default.** `gateway.security.enabled` defaults to `false`. Putting the starter on the classpath does **not** automatically protect anything. If you also enable `gateway.caching.enabled=true` or `gateway.conman.enabled=true`, the resulting `/gateway/cache/**` and `/conman/admin/**` endpoints will be **publicly reachable** until you also flip `gateway.security.enabled=true`. Treat the two as paired.
 
 ## SecurityAutoConfiguration
 
-The `SecurityAutoConfiguration` class automatically configures Spring Security when:
-- Spring Security is on the classpath
-- `gateway.security.enabled=true`
+`SecurityAutoConfiguration` is annotated with `@ConditionalOnClass(SecurityWebFilterChain.class)` and `@ConditionalOnProperty(prefix = "gateway.security", name = "enabled", havingValue = "true", matchIfMissing = false)`. Both conditions must be true:
+
+- Spring Security must be on the classpath (`spring-boot-starter-security` is `optional` in `gateway-starter`; pull it in explicitly in your application's POM or use `gateway-app` which already declares it).
+- `gateway.security.enabled` must be `true`. There is no `matchIfMissing` fallback — leaving the property unset leaves the gateway open.
 
 ### OAuth2 Support
 
@@ -57,7 +60,7 @@ gateway:
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `enabled` | boolean | `true` | Enable or disable security configuration |
+| `enabled` | boolean | `false` | Enable or disable security configuration. **Default is OFF** — no auto-configuration happens until this is set to `true`. |
 | `guest-allowed-paths` | List<String> | `[]` | Paths that bypass authentication |
 | `oauth2.enabled` | boolean | `false` | Enable OAuth2 authentication |
 | `oauth2.provider.issuer-uri` | String | - | OAuth2 issuer URI (e.g., Keycloak realm URL) |
@@ -75,18 +78,23 @@ gateway:
 
 The security configuration implements a path-based access control strategy:
 
-### Always-Protected Endpoints
+### Always-Protected Endpoints (when `gateway.security.enabled=true`)
 - `/gateway/cache/**` - Cache management endpoints
 - `/conman/admin/**` - Conman admin endpoints
 
-These endpoints **always require authentication**, regardless of configuration.
+These two patterns are added to the chain with `.authenticated()` **before** any `guest-allowed-paths` entries are applied, so an operator cannot accidentally permit-all them by including a prefix in `guest-allowed-paths`. This guarantee only kicks in when security is enabled — see the warning at the top of this page.
 
-### Public Endpoints (Always Permitted)
+### Public Endpoints (hardcoded `.permitAll()`)
+
+The following patterns are hardcoded into `SecurityAutoConfiguration` and **are not configurable**:
+
 - `/`, `/actuator/health`, `/actuator/info`
 - `/oauth2/**`, `/login/**`
 - `/swagger-ui.html`, `/swagger-ui/**`, `/swagger-resources/**`
 - `/v3/api-docs/**`, `/api-docs/**`, `/swagger-ui/oauth2-redirect.html`
 - All HTTP `OPTIONS` requests (CORS preflight)
+
+If you need a different actuator endpoint to be public (`/actuator/prometheus`, say), add it to `guest-allowed-paths`. If you need to **block** one of the hardcoded ones, run the gateway behind a reverse proxy that strips the path before it arrives — there is no in-process opt-out today.
 
 ### Guest-Allowed Paths
 Add custom paths that should bypass authentication via `gateway.security.guest-allowed-paths`:

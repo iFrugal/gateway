@@ -50,9 +50,10 @@ No vendor lock-in — works without service discovery. Profile-based activation 
 
 ### Use as a Library
 
+Add `gateway-starter` to your POM and the toolkit auto-configures itself — **`@EnableGatewayToolkit` is optional**:
+
 ```java
 @SpringBootApplication
-@EnableGatewayToolkit
 public class MyGatewayApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyGatewayApplication.class, args);
@@ -60,9 +61,20 @@ public class MyGatewayApplication {
 }
 ```
 
-Selectively disable features via annotation:
+Each feature is gated on `gateway.<feature>.enabled` in `application.yml`. Defaults:
+
+| Feature   | Default `enabled` | Notes |
+|-----------|------------------|-------|
+| logging   | `true`           | Body capture only when a per-route rule opts in |
+| CORS      | `true`           | Permissive defaults; pin `allowed-origins` in production |
+| caching   | `false`          | No `CacheProvider` bean loads until you flip this |
+| conman    | `false`          | Mock endpoints + admin REST hidden until enabled |
+| security  | `false`          | **Admin endpoints are public until you flip this to `true`** |
+
+`@EnableGatewayToolkit` exists as a compile-time shortcut to override those defaults from Java instead of YAML. It does not gate auto-configuration — putting `gateway-starter` on the classpath is what loads the auto-configuration:
 
 ```java
+// optional — annotation-driven defaults, YAML still wins
 @EnableGatewayToolkit(enableCaching = false, enableConman = false)
 ```
 
@@ -198,7 +210,19 @@ Releases are automated via GitHub Actions. Tag a version (`v1.0.0`) or trigger `
 
 ## Security
 
-When deploying in production, enable security (`gateway.security.enabled=true`) to protect admin endpoints (`/gateway/cache/**`, `/conman/admin/**`). See [Security docs](docs/security.md) and [SECURITY.md](SECURITY.md) for details.
+`gateway.security.enabled` defaults to **`false`**. The toolkit's admin endpoints (`/gateway/cache/**`, `/conman/admin/**`) are reachable **without authentication** until you flip it to `true`. Treat security as paired with caching/conman: whenever you turn one of those on, also turn security on.
+
+```yaml
+gateway:
+  security:
+    enabled: true
+    oauth2:
+      enabled: true
+      provider:
+        issuer-uri: https://auth.example.com
+```
+
+See [Security docs](docs/security.md) and [SECURITY.md](SECURITY.md) for the full configuration surface, the hardcoded permitted-paths list, and CORS settings.
 
 ## Contributing
 

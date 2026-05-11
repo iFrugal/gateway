@@ -106,9 +106,9 @@ Returns early from all cache operations without side effects. Useful for develop
 
 ## Request/Response Flow
 
-The `LoggingAndCachingWebFilter` (highest precedence) handles caching:
+`LoggingAndCachingWebFilter` (`Ordered.HIGHEST_PRECEDENCE`) handles caching for any request that survives the ignore-path check:
 
-1. **Ignore path check:** Skip health checks, swagger docs, etc.
+1. **Ignore path check:** Paths in `gateway.logging.ignore-paths` are skipped by *both* logging and caching — the filter exits early and forwards the request unchanged. Defaults include `/actuator/health`, `/swagger-ui/**`, `/v3/api-docs/**`.
 2. **Rule matching:** Determine if request path/method matches any caching rules
 3. **Cache lookup:** Check if a cached response exists for the generated key
 4. **Cache hit:** Short-circuit upstream call, return cached response with `X-Cache: HIT` header
@@ -158,44 +158,51 @@ Removes all cached entries.
 
 ### Custom Cache Provider
 
-Implement `CacheProvider` to use a different cache backend (Redis, Memcached, etc.):
+The auto-configured Caffeine bean is guarded by `@ConditionalOnMissingBean(CacheProvider.class)`. Declaring a `@Bean` of type `CacheProvider` in your own configuration **replaces** the default — no other wiring required.
 
-```java
-public class RedisProvider implements CacheProvider {
-    private final RedisTemplate<String, String> template;
-
-    @Override
-    public Mono<Optional<String>> get(String key) {
-        return Mono.fromCallable(() ->
-            Optional.ofNullable(template.opsForValue().get(key))
-        );
-    }
-
-    @Override
-    public Mono<Void> put(String key, String value, long ttlSeconds) {
-        return Mono.fromRunnable(() ->
-            template.opsForValue().set(key, value, Duration.ofSeconds(ttlSeconds))
-        );
-    }
-
-    // Implement other methods...
-}
-```
-
-Register your provider as a Spring bean to override the default:
 ```java
 @Configuration
 public class CacheConfig {
     @Bean
-    public CacheProvider cacheProvider() {
-        return new RedisProvider(redisTemplate);
+    public CacheProvider cacheProvider(ReactiveRedisTemplate<String, String> redis) {
+        return new RedisProvider(redis);
     }
 }
 ```
 
+Implement the interface using a **reactive** Redis client (`ReactiveRedisTemplate`, Lettuce, etc.) so cache operations stay non-blocking:
+
+```java
+public class RedisProvider implements CacheProvider {
+    private final ReactiveRedisTemplate<String, String> redis;
+
+    @Override
+    public Mono<Optional<String>> get(String key) {
+        return redis.opsForValue().get(key)
+                .map(Optional::ofNullable)
+                .defaultIfEmpty(Optional.empty());
+    }
+
+    @Override
+    public Mono<Void> put(String key, String value, long ttlSeconds) {
+        return redis.opsForValue()
+                .set(key, value, Duration.ofSeconds(ttlSeconds))
+                .then();
+    }
+    // invalidate, clear, getInternalKeys ...
+}
+```
+
+> **Do not wrap blocking Redis clients** (`RedisTemplate`, Jedis sync API) in `Mono.fromCallable` on the request hot path — that stalls a Netty event-loop thread. If you must use a blocking client, schedule it on `Schedulers.boundedElastic()` and accept the context-switch cost.
+
 ### Custom Rule Matching
 
-Extend `RequestMatcher` to implement custom logic for determining which requests should be cached based on headers, authentication, or other criteria.
+`RequestMatcher` in `com.github.ifrugal.gateway.core.filter.utils` exposes the path + method matching logic used by both logging and caching rules. It is a small static utility — there is no extension hook to plug in custom matchers today; if you need header- or principal-based caching, the cleanest path is to override the whole `LoggingAndCachingWebFilter` bean (it is `@ConditionalOnMissingBean`) and reuse `RequestMatcher` from your replacement.
+
+### Caveats to know about the default key
+
+- The cache key does **not** include request headers. If your upstream returns content-negotiated responses (`Accept`, `Accept-Language`, etc.), do not cache those endpoints with the default key — you will serve the wrong representation to other clients.
+- The key does not include the tenant header used by Conman. A multi-tenant deployment that caches tenant-scoped responses with the default key will leak tenant data across tenants. Either disable caching on tenant-scoped routes or extend the filter.
 
 ## Performance Considerations
 
