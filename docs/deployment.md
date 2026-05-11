@@ -5,7 +5,7 @@ This guide covers all deployment options for the Spring Gateway Toolkit, from de
 ## Building from Source
 
 ### Prerequisites
-- Java 21 or later
+- Java 25 LTS or later
 - Maven 3.9+
 - Git (for cloning the repository)
 
@@ -151,7 +151,7 @@ This starts:
 - Swagger UI on port 8080/swagger-ui.html
 
 ### Docker Image Details
-- **Base Image:** eclipse-temurin:21-jre-alpine (lightweight Java 21 runtime)
+- **Base Image:** eclipse-temurin:25-jre-alpine (lightweight Java 25 LTS runtime)
 - **Non-root User:** runs as `gateway` user (UID 1001) for security
 - **Health Check:** configured to verify application health every 30 seconds
 - **Volumes:**
