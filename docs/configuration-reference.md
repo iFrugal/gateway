@@ -21,6 +21,8 @@ Request and response logging for traffic flowing through the gateway. The filter
 |---|---|---|---|
 | `gateway.logging.enabled` | `GATEWAY_LOGGING_ENABLED` | `true` | Enable/disable request/response logging |
 | `gateway.logging.level` | `GATEWAY_LOGGING_LEVEL` | `info` | Log level (info, debug, warn, error) |
+| `gateway.logging.max-body-bytes` | `GATEWAY_LOGGING_MAX_BODY_BYTES` | `65536` (64 KiB) | Byte cap on the captured request/response body copy used for logging and caching. Bodies still flow to upstream in full; only the captured copy is bounded. Set `0` to disable. See [logging.md](logging.md). |
+| `gateway.logging.sensitive-headers` | `GATEWAY_LOGGING_SENSITIVE_HEADERS` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token]` | Header names whose values are redacted (case-insensitive) in structured log output. |
 | `gateway.logging.ignore-paths` | `GATEWAY_LOGGING_IGNORE_PATHS` | `[]` | Path patterns to exclude from logging |
 | `gateway.logging.requests[].paths` | - | - | Ant-style path patterns to match |
 | `gateway.logging.requests[].methods` | - | - | HTTP methods (GET, POST, etc. or "*") |

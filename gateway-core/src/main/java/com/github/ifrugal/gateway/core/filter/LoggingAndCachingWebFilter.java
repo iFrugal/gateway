@@ -19,7 +19,15 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * WebFilter that provides request/response logging and response caching.
@@ -147,7 +155,8 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
                 .orElse(false) || cacheRuleOpt.isPresent();
 
         if (captureBody) {
-            final BodyCaptureExchange bodyCaptureExchange = new BodyCaptureExchange(exchange);
+            final BodyCaptureExchange bodyCaptureExchange =
+                    new BodyCaptureExchange(exchange, loggingProperties.getMaxBodyBytes());
 
             return bodyCaptureExchange.getRequest().getFullBodyAsync()
                     .doOnNext(requestBody -> {
@@ -199,13 +208,8 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
         requestInfo.put("path", request.getPath().value());
         requestInfo.put("queryParams", request.getQueryParams());
 
-        // Remove sensitive headers
-        final Map<String, List<String>> safeHeaders = new HashMap<>(request.getHeaders());
-        safeHeaders.remove("Authorization");
-        safeHeaders.remove("authorization");
-        safeHeaders.remove("Cookie");
-        safeHeaders.remove("cookie");
-        requestInfo.put("headers", safeHeaders);
+        // Redact sensitive headers (case-insensitive) using the configurable list.
+        requestInfo.put("headers", redactSensitiveHeaders(request.getHeaders()));
 
         if (!logConfig.isExcludeBody() && requestBody != null && !requestBody.isBlank()) {
             requestInfo.put("body", requestBody);
@@ -249,6 +253,34 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
         responseInfo.put("durationMs", durationMs);
 
         log.info("Response: {}", responseInfo);
+    }
+
+    /**
+     * Return a copy of the request headers with values for any name in
+     * {@link LoggingProperties#getSensitiveHeaders()} replaced by a redaction
+     * marker. The match is case-insensitive on the header name. The returned
+     * map is a fresh {@link LinkedHashMap} — modifying it does not touch the
+     * underlying request headers.
+     */
+    Map<String, List<String>> redactSensitiveHeaders(org.springframework.http.HttpHeaders headers) {
+        final Set<String> sensitiveLower = new HashSet<>();
+        final List<String> configured = loggingProperties.getSensitiveHeaders();
+        if (configured != null) {
+            for (String h : configured) {
+                if (h != null && !h.isBlank()) {
+                    sensitiveLower.add(h.toLowerCase(Locale.ROOT));
+                }
+            }
+        }
+        final Map<String, List<String>> safe = new LinkedHashMap<>();
+        headers.forEach((name, values) -> {
+            if (sensitiveLower.contains(name.toLowerCase(Locale.ROOT))) {
+                safe.put(name, List.of("[REDACTED]"));
+            } else {
+                safe.put(name, values);
+            }
+        });
+        return safe;
     }
 
     /**
