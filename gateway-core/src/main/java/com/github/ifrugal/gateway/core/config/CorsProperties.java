@@ -1,7 +1,9 @@
 package com.github.ifrugal.gateway.core.config;
 
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.List;
  * </pre>
  */
 @ConfigurationProperties(prefix = "gateway.cors")
+@Validated
 @Data
 public class CorsProperties {
 
@@ -53,6 +56,7 @@ public class CorsProperties {
     /**
      * Max age in seconds for preflight cache.
      */
+    @PositiveOrZero(message = "gateway.cors.max-age must be zero or positive (seconds)")
     private long maxAge = 3600;
 
     /**

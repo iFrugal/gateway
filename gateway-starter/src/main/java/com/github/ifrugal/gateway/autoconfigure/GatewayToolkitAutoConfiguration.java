@@ -128,8 +128,8 @@ public class GatewayToolkitAutoConfiguration {
 
         @Bean
         @ConditionalOnMissingBean(ConmanServlet.class)
-        public ConmanServlet conmanServlet(ConmanCache conmanCache) {
-            return new ConmanServlet(conmanCache);
+        public ConmanServlet conmanServlet(ConmanCache conmanCache, ConmanProperties conmanProperties) {
+            return new ConmanServlet(conmanCache, conmanProperties);
         }
 
         /**

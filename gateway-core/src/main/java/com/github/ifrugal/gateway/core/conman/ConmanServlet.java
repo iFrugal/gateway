@@ -25,9 +25,32 @@ import java.util.Map;
 public class ConmanServlet {
 
     private final ConmanCache conmanCache;
+    private final String tenantIdHeader;
 
+    /**
+     * Backwards-compatible constructor. Resolves the tenant via the default
+     * header ({@link ConmanProperties#DEFAULT_TENANT_ID_HEADER}). New callers
+     * should prefer the two-argument constructor that takes
+     * {@link ConmanProperties} so the header name follows YAML configuration.
+     */
     public ConmanServlet(ConmanCache conmanCache) {
+        this(conmanCache, ConmanProperties.DEFAULT_TENANT_ID_HEADER);
+    }
+
+    /**
+     * Preferred constructor for Spring-managed wiring. The header name is
+     * sourced from {@link ConmanProperties#getTenantIdHeader()} so operators
+     * can override it via {@code gateway.conman.tenant-id-header} in YAML.
+     */
+    public ConmanServlet(ConmanCache conmanCache, ConmanProperties properties) {
+        this(conmanCache, properties.getTenantIdHeader());
+    }
+
+    private ConmanServlet(ConmanCache conmanCache, String tenantIdHeader) {
         this.conmanCache = conmanCache;
+        this.tenantIdHeader = (tenantIdHeader == null || tenantIdHeader.isBlank())
+                ? ConmanProperties.DEFAULT_TENANT_ID_HEADER
+                : tenantIdHeader;
     }
 
     /**
@@ -39,7 +62,7 @@ public class ConmanServlet {
     public Mono<ServerResponse> service(ServerRequest req) {
         HttpMethod httpMethod = HttpMethod.valueOf(getMethodName(req));
         String uri = req.uri().getPath();
-        String tenantId = req.headers().firstHeader("tenant-id");
+        String tenantId = req.headers().firstHeader(tenantIdHeader);
 
         MockConfig data = conmanCache.getMockConfig(httpMethod, uri, tenantId);
 

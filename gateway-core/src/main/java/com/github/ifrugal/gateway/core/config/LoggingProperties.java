@@ -1,8 +1,12 @@
 package com.github.ifrugal.gateway.core.config;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.HttpMethod;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +32,7 @@ import java.util.stream.Collectors;
  * </pre>
  */
 @ConfigurationProperties(prefix = "gateway.logging")
+@Validated
 @Data
 public class LoggingProperties {
 
@@ -39,6 +44,11 @@ public class LoggingProperties {
     /**
      * Log level for request/response logs.
      */
+    @NotBlank(message = "gateway.logging.level must not be blank")
+    @Pattern(
+            regexp = "(?i)trace|debug|info|warn|error",
+            message = "gateway.logging.level must be one of: trace, debug, info, warn, error"
+    )
     private String level = "info";
 
     /**
@@ -50,6 +60,7 @@ public class LoggingProperties {
     /**
      * List of request configurations for logging.
      */
+    @Valid
     private List<RequestConfig> requests = new ArrayList<>();
 
     @Data
