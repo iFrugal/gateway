@@ -43,19 +43,30 @@
         <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
         <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
 
-        <!-- Spring versions -->
-        <spring-boot.version>4.0.6</spring-boot.version>
-        <spring-cloud.version>2025.1.1</spring-cloud.version>
+        <!-- Spring versions.
+             Pinned to the 3.5.x / 2025.0.x line. Spring Boot 4 + Spring Cloud
+             2025.1 form a coordinated major upgrade that, on the Gateway side,
+             renames spring-cloud-starter-gateway into separate WebFlux and
+             WebMVC starters and requires a code-level migration. Track the
+             migration as its own focused PR — not as a Dependabot click. -->
+        <spring-boot.version>3.5.10</spring-boot.version>
+        <spring-cloud.version>2025.0.0</spring-cloud.version>
 
         <!-- Lombok — 1.18.30 (the version Spring Boot 3.5.x manages) predates
              JDK 22 and fails on JDK 25 with "TypeTag :: UNKNOWN". 1.18.46
              is the first release with native JDK 25 support. -->
         <lombok.version>1.18.46</lombok.version>
 
-        <!-- Library versions -->
-        <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
+        <!-- Library versions.
+             springdoc 2.x is the line that targets Spring Boot 3.x; the 3.x
+             line targets Spring Boot 4 / Spring Framework 7. Bump when we
+             actually move to Spring Boot 4.
+             json-schema-validator 1.5.x is the line tested against the
+             RequestValidator call sites in this project. 2.x and 3.x change
+             the JsonSchema / JsonSchemaFactory / SpecVersionDetector API. -->
+        <springdoc-openapi.version>2.8.15</springdoc-openapi.version>
         <lazydevs.version>1.0.46</lazydevs.version>
-        <json-schema-validator.version>3.0.2</json-schema-validator.version>
+        <json-schema-validator.version>1.5.6</json-schema-validator.version>
 
         <!-- JaCoCo — 0.8.12 bundles an ASM that cannot read Java 25 bytecode
              (major version 69) and fails report generation. 0.8.14 was the

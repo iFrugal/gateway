@@ -1,6 +1,12 @@
 # Dependabot configuration — keeps build dependencies, GitHub Actions and the
 # Docker base image current so JDK / library bumps are noticed promptly rather
 # than during the next manual audit.
+#
+# Major-version bumps for the framework stack are intentionally NOT auto-PR'd:
+# they require coordinated migration (e.g. Spring Boot 4 + Spring Cloud 2025.1
+# rename spring-cloud-starter-gateway, springdoc 3.x targets Spring Boot 4,
+# json-schema-validator 2.x/3.x rewrote the JsonSchema/JsonSchemaFactory API).
+# Bump those manually when the migration work is scoped.
 version: 2
 updates:
   - package-ecosystem: "maven"
@@ -18,6 +24,23 @@ updates:
       spring-cloud:
         patterns:
           - "org.springframework.cloud:*"
+    ignore:
+      # Spring Boot — major bumps require Spring Framework 7 / Jakarta EE 11
+      # alignment and the Spring Cloud Gateway artifact rename. Manual only.
+      - dependency-name: "org.springframework.boot:*"
+        update-types: ["version-update:semver-major"]
+      # Spring Cloud release trains track Spring Boot majors. Same rationale.
+      - dependency-name: "org.springframework.cloud:*"
+        update-types: ["version-update:semver-major"]
+      # springdoc 3.x targets Spring Boot 4 / Spring Framework 7. Bump in
+      # lockstep with Spring Boot, not independently.
+      - dependency-name: "org.springdoc:*"
+        update-types: ["version-update:semver-major"]
+      # networknt json-schema-validator 2.x and 3.x reshape the JsonSchema /
+      # JsonSchemaFactory / SpecVersionDetector API the RequestValidator
+      # uses. Major bumps need code changes + tests in the same PR.
+      - dependency-name: "com.networknt:json-schema-validator"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -34,3 +57,11 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      # Pin Docker base images to the Java 25 LTS line. Eclipse Temurin
+      # publishes non-LTS images (26, 27) that Dependabot would otherwise
+      # offer; ignore anything that is not a 25-* tag.
+      - dependency-name: "maven"
+        versions: [">=3.10-eclipse-temurin-26", ">=3.10-eclipse-temurin-27"]
+      - dependency-name: "eclipse-temurin"
+        versions: [">=26-jre", ">=27-jre"]

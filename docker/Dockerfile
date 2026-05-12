@@ -4,8 +4,11 @@
 # Multi-stage build for optimized Docker image
 # =============================================================================
 
-# Stage 1: Build
-FROM maven:3-eclipse-temurin-26-alpine AS builder
+# Stage 1: Build.
+# Pinned to maven:3.9-* on the Java 25 LTS line. Do not move forward to
+# Java 26 or any non-LTS line; the JaCoCo / maven-dependency-plugin pins
+# in the root POM only guarantee bytecode-read support for JDK 25 today.
+FROM maven:3.9-eclipse-temurin-25-alpine AS builder
 
 WORKDIR /build
 
