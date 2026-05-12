@@ -55,6 +55,12 @@ application-*.yml
 .env
 .env.local
 
+# Old package directory (migrated to com.github.ifrugal.gateway)
+**/io/github/springgateway/
+
+# Duplicate inner folder (artifact of old repo structure)
+spring-gateway-toolkit/
+
 # Docker
 docker/config/*.yml
 !docker/config/application-docker.yml

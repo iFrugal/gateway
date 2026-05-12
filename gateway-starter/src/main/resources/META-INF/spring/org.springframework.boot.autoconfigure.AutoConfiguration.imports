@@ -1,2 +1,2 @@
-io.github.springgateway.autoconfigure.GatewayToolkitAutoConfiguration
-io.github.springgateway.autoconfigure.SecurityAutoConfiguration
+com.github.ifrugal.gateway.autoconfigure.GatewayToolkitAutoConfiguration
+com.github.ifrugal.gateway.autoconfigure.SecurityAutoConfiguration

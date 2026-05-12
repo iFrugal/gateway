@@ -12,6 +12,19 @@ spring:
   application:
     name: ${SPRING_APPLICATION_NAME:api-gateway}
 
+  # Codec / WebFlux multipart caps — bound the bytes the framework will buffer
+  # before the application sees them. These caps are the real ceiling on
+  # /conman/admin/register uploads; the controller's own 1 MB check is a
+  # defence-in-depth secondary gate (it runs after the multipart codec has
+  # already buffered the part).
+  codec:
+    max-in-memory-size: 1MB
+  webflux:
+    multipart:
+      max-in-memory-size: 1MB
+      max-disk-usage-per-part: 2MB
+      max-parts: 8
+
   # Spring Security OAuth2 Configuration
   security:
     oauth2:
@@ -133,7 +146,7 @@ springdoc:
     enabled: true
     groups:
       enabled: true
-  packages-to-scan: io.github.springgateway
+  packages-to-scan: com.github.ifrugal.gateway
 
 # =============================================================================
 # Actuator / Monitoring
@@ -173,4 +186,4 @@ logging:
   level:
     root: INFO
     org.springframework.cloud.gateway: ${GATEWAY_LOG_LEVEL:WARN}
-    io.github.springgateway: ${TOOLKIT_LOG_LEVEL:INFO}
+    com.github.ifrugal.gateway: ${TOOLKIT_LOG_LEVEL:INFO}

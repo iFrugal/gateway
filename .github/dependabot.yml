@@ -1,0 +1,36 @@
+# Dependabot configuration — keeps build dependencies, GitHub Actions and the
+# Docker base image current so JDK / library bumps are noticed promptly rather
+# than during the next manual audit.
+version: 2
+updates:
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "maven"
+    groups:
+      spring-boot:
+        patterns:
+          - "org.springframework.boot:*"
+      spring-cloud:
+        patterns:
+          - "org.springframework.cloud:*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  - package-ecosystem: "docker"
+    directory: "/docker"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"

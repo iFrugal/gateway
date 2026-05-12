@@ -58,7 +58,7 @@
     </springProfile>
 
     <!-- Package-specific logging -->
-    <logger name="io.github.springgateway" level="DEBUG"/>
+    <logger name="com.github.ifrugal.gateway" level="DEBUG"/>
     <logger name="org.springframework.cloud.gateway" level="WARN"/>
     <logger name="org.springframework.security" level="WARN"/>
     <logger name="reactor.netty" level="WARN"/>
