@@ -9,7 +9,7 @@ import com.github.ifrugal.gateway.core.config.LoggingProperties;
 import com.github.ifrugal.gateway.core.config.SecurityProperties;
 import com.github.ifrugal.gateway.core.conman.ConmanCache;
 import com.github.ifrugal.gateway.core.conman.ConmanProperties;
-import com.github.ifrugal.gateway.core.conman.ConmanServlet;
+import com.github.ifrugal.gateway.core.conman.ConmanHandler;
 import com.github.ifrugal.gateway.core.controller.CacheController;
 import com.github.ifrugal.gateway.core.conman.ConmanAdminController;
 import com.github.ifrugal.gateway.core.filter.LoggingAndCachingWebFilter;
@@ -127,19 +127,19 @@ public class GatewayToolkitAutoConfiguration {
         }
 
         @Bean
-        @ConditionalOnMissingBean(ConmanServlet.class)
-        public ConmanServlet conmanServlet(ConmanCache conmanCache, ConmanProperties conmanProperties) {
-            return new ConmanServlet(conmanCache, conmanProperties);
+        @ConditionalOnMissingBean(ConmanHandler.class)
+        public ConmanHandler conmanHandler(ConmanCache conmanCache, ConmanProperties conmanProperties) {
+            return new ConmanHandler(conmanCache, conmanProperties);
         }
 
         /**
-         * Register Conman routes using the managed ConmanServlet bean.
-         * Reuses the same ConmanServlet instance registered as a Spring bean.
+         * Register Conman routes using the managed ConmanHandler bean.
+         * Reuses the same ConmanHandler instance registered as a Spring bean.
          */
         @Bean
         public RouterFunction<ServerResponse> conmanRoutes(ConmanProperties conmanProperties,
-                                                           ConmanServlet conmanServlet) {
-            HandlerFunction<ServerResponse> handlerFunction = conmanServlet::service;
+                                                           ConmanHandler conmanHandler) {
+            HandlerFunction<ServerResponse> handlerFunction = conmanHandler::service;
 
             if (conmanProperties.getServletUriMappings().isEmpty()) {
                 log.warn("No Conman servlet URI mappings configured");

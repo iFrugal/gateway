@@ -54,9 +54,9 @@ gateway-app  →  gateway-starter  →  gateway-core
 
 | Class | Notes |
 |---|---|
-| `ConmanProperties` (`gateway.conman`) | `enabled=false`, `servletUriMappings=["/mock/**"]`, `mappingFiles=["classpath:conman.yml"]`, `bannerPath="classpath:conman-banner.txt"`. **The tenant header name is hardcoded** in `ConmanServlet` as the literal `"tenant-id"` — there is no property for it on this class today. |
+| `ConmanProperties` (`gateway.conman`) | `enabled=false`, `servletUriMappings=["/mock/**"]`, `mappingFiles=["classpath:conman.yml"]`, `bannerPath="classpath:conman-banner.txt"`, `tenantIdHeader="tenant-id"`. The tenant header used by `ConmanHandler` is configurable via `gateway.conman.tenant-id-header` (was hardcoded prior to `1.1.0`). |
 | `ConmanCache` | Holds `MockConfig` entries in a `ConcurrentHashMap` keyed by `{METHOD}_{URI}_{tenantId}`. Loaded eagerly from `mappingFiles` at startup; can be reloaded via the admin REST API. |
-| `ConmanServlet` | **Not a servlet** — historical name. A Spring-managed reactive handler returning `Mono<ServerResponse>`, registered via a `RouterFunction` in `GatewayToolkitAutoConfiguration`. |
+| `ConmanHandler` | Spring-managed reactive handler returning `Mono<ServerResponse>`, registered via a `RouterFunction` in `GatewayToolkitAutoConfiguration`. **Renamed from `ConmanServlet` in `1.1.0`** — the old name was historical and misleading. |
 | `MockConfig` | YAML-bound POJO. Fields: `tenantId`, `tenantIds`, `request`, `response`. No `name` field. See [conman.md](conman.md) for the full structure. |
 | `ConmanAdminController` | `@RestController` at `/conman/admin`. Endpoints: `POST /register` (multipart, max 1 MB), `GET /mocks`, `POST /reload`, `DELETE /mocks`, `GET /test`. |
 
@@ -93,7 +93,7 @@ Spring Boot starter. **No business logic** — every class here exists to wire `
 
 | Class | Conditions | What it registers |
 |---|---|---|
-| `GatewayToolkitAutoConfiguration` | always loads (listed in `AutoConfiguration.imports`) | `CaffeineProvider` (when caching enabled + no other `CacheProvider` bean), `NoOpCacheProvider` (fallback, no other `CacheProvider` bean), `LoggingAndCachingWebFilter` (no existing bean), `CorsWebFilter` (when CORS enabled or `matchIfMissing`), nested `ConmanAutoConfiguration` (when Conman enabled — registers `ConmanCache`, `ConmanServlet`, and the `RouterFunction` that maps `servletUriMappings` to the servlet). |
+| `GatewayToolkitAutoConfiguration` | always loads (listed in `AutoConfiguration.imports`) | `CaffeineProvider` (when caching enabled + no other `CacheProvider` bean), `NoOpCacheProvider` (fallback, no other `CacheProvider` bean), `LoggingAndCachingWebFilter` (no existing bean), `CorsWebFilter` (when CORS enabled or `matchIfMissing`), nested `ConmanAutoConfiguration` (when Conman enabled — registers `ConmanCache`, `ConmanHandler`, and the `RouterFunction` that maps `servletUriMappings` to the handler). |
 | `SecurityAutoConfiguration` | `@ConditionalOnClass(SecurityWebFilterChain.class)` + `@ConditionalOnProperty(... matchIfMissing=false)` | `SecurityWebFilterChain` with hardcoded `.authenticated()` for `/gateway/cache/**` and `/conman/admin/**`, hardcoded permits for the actuator + swagger paths, then user-supplied `guest-allowed-paths`. Also wires the Swagger UI `OpenAPI` bean when OAuth2 is enabled. |
 
 ### `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
