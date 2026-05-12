@@ -88,9 +88,14 @@ public class ConmanAdminController {
                         log.info("Registering mock configurations from file: {} ({} bytes), tenantId: {}",
                                 filename, size, tenantId);
 
+                        // ConmanCache.register(String, InputStream) is declared without
+                        // a checked-exception throws clause today. Catch RuntimeException
+                        // so a YAML-parse or persistence failure surfaces as an error
+                        // signal on the returned Mono rather than escaping to the global
+                        // error handler unwrapped.
                         try {
                             conmanCache.register(tenantId, new ByteArrayInputStream(bytes));
-                        } catch (IOException e) {
+                        } catch (RuntimeException e) {
                             return Mono.error(e);
                         }
 
