@@ -176,7 +176,9 @@ Mounted at `/conman/admin/**` when `gateway.conman.enabled=true`. **These endpoi
 | `DELETE` | `/conman/admin/mocks` | — | Clear all mocks from the cache. The `mapping-files` are *not* re-read; use `/reload` for that. |
 | `GET` | `/conman/admin/test?httpMethod=GET&uri=/mock/users/1&tenantId=tenant-1` | — | Look up which mock would match the given request without actually invoking it. |
 
-### Upload size limit
+### Upload handling
+
+`ConmanAdminController.register` accepts the upload as a reactive `org.springframework.http.codec.multipart.FilePart` (since `1.1.0`; `1.0.x` used servlet-API `MultipartFile`). The HTTP contract is identical — clients still send `multipart/form-data` with a `registrationFile` part and an optional `tenantId` part — but server-side the file content streams through the WebFlux codec instead of being buffered into a `MultipartFile` adapter.
 
 The bundled `gateway-app/src/main/resources/application.yml` ships with the framework-level multipart caps already configured:
 
@@ -191,7 +193,7 @@ spring:
       max-parts: 8
 ```
 
-These ensure an oversized upload is rejected by the codec **before** it reaches `ConmanAdminController.register`. The controller's own 1 MB check is a defence-in-depth secondary gate.
+These ensure an oversized upload is rejected by the codec **before** it reaches `ConmanAdminController.register`. The controller's own 1 MB check (`ConmanAdminController.MAX_UPLOAD_SIZE_BYTES`) is a defence-in-depth secondary gate that fires *after* the join.
 
 If you embed `gateway-starter` in your own Spring Boot application (rather than running `gateway-app`), copy the snippet above into your `application.yml`. Without it, an attacker uploading a 100 MB part can buffer the bytes before the controller-level check trips.
 
