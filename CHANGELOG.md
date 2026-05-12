@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Reverted a batch of Dependabot bumps that had broken the build. Spring Boot back to 3.5.10 (had been bumped to 4.0.6), Spring Cloud back to 2025.0.0 (had been bumped to 2025.1.1 which renames `spring-cloud-starter-gateway` and broke the reactor), springdoc back to 2.8.15 (the 3.x line targets Spring Boot 4), `json-schema-validator` back to 1.5.6 (the 3.x rewrite changes the `JsonSchema`/`JsonSchemaFactory`/`SpecVersionDetector` API). Docker builder image rolled back from non-LTS Java 26 to the pinned `maven:3.9-eclipse-temurin-25-alpine`. Internal libraries (`lazydevs.version` 1.0.46, `ifrugal-parent` 1.0.15) and the action minor bump (`crazy-max/ghaction-import-gpg` v7) are kept.
+
 ### Changed
+- `dependabot.yml` tightened: ignores major-version bumps for Spring Boot, Spring Cloud, springdoc, and `json-schema-validator`; pins Docker base images to the Java 25 LTS line so non-LTS bumps aren't proposed.
 - Default branch renamed from `master` to `main`. CI, CodeQL, and Release workflows triggered/guarded on `main`; README, CONTRIBUTING, and SonarCloud scoping language updated accordingly.
 - Baseline bumped to Java 25 LTS. Lombok pinned to 1.18.46 (1.18.30 fails on JDK 25). JaCoCo bumped to 0.8.14 (0.8.12's bundled ASM can't read Java 25 bytecode). `maven-compiler-plugin` pinned to 3.15.0 with explicit `<release>${java.version}</release>` and Lombok wired into `<annotationProcessorPaths>`.
 - CI/CD workflows aligned with the `notification-service` standard: concurrency cancellation, JDK matrix, `actions/checkout@v6` + `actions/setup-java@v5`, Maven wrapper (`./mvnw`), surefire upload on failure, separate dependency-analyze job pinned to `maven-dependency-plugin:3.9.0`.
