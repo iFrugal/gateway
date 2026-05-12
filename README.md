@@ -50,7 +50,7 @@ No vendor lock-in — works without service discovery. Profile-based activation 
 
 ### Use as a Library
 
-Add `gateway-starter` to your POM and the toolkit auto-configures itself — **`@EnableGatewayToolkit` is optional**:
+Add `gateway-starter` to your POM and the toolkit auto-configures itself. No annotation needed:
 
 ```java
 @SpringBootApplication
@@ -71,12 +71,21 @@ Each feature is gated on `gateway.<feature>.enabled` in `application.yml`. Defau
 | conman    | `false`          | Mock endpoints + admin REST hidden until enabled |
 | security  | `false`          | **Admin endpoints are public until you flip this to `true`** |
 
-`@EnableGatewayToolkit` exists as a compile-time shortcut to override those defaults from Java instead of YAML. It does not gate auto-configuration — putting `gateway-starter` on the classpath is what loads the auto-configuration:
+Override any default via `application.yml` or an environment variable:
 
-```java
-// optional — annotation-driven defaults, YAML still wins
-@EnableGatewayToolkit(enableCaching = false, enableConman = false)
+```yaml
+gateway:
+  caching:
+    enabled: true
+  conman:
+    enabled: false
 ```
+
+```bash
+GATEWAY_CACHING_ENABLED=true GATEWAY_CONMAN_ENABLED=false ./mvnw spring-boot:run
+```
+
+> `1.0.x` shipped an `@EnableGatewayToolkit` annotation that seeded these defaults at compile time. It was removed in `1.1.0` because the starter already auto-configures everything from the classpath — the annotation only confused readers by looking like a feature gate when it wasn't. Use YAML / env vars to control feature flags.
 
 ### Use the Standalone Application
 

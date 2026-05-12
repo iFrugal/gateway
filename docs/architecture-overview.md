@@ -83,11 +83,9 @@ See [module-structure.md](module-structure.md) for the per-package breakdown and
 
 ## How features are activated
 
-The starter's `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` lists `GatewayToolkitAutoConfiguration` and `SecurityAutoConfiguration` unconditionally. Putting `gateway-starter` on the classpath is what loads the auto-configuration — the `@EnableGatewayToolkit` annotation is **not** required.
+The starter's `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` lists `GatewayToolkitAutoConfiguration` and `SecurityAutoConfiguration` unconditionally. **Putting `gateway-starter` on the classpath is what loads the auto-configuration** — there is no enabling annotation. Each individual feature is then gated by a `@ConditionalOnProperty` check on `gateway.<feature>.enabled` (see the default matrix below). Set the property via `application.yml`, an environment variable, or a `--gateway.x.enabled=true` command-line flag.
 
-`@EnableGatewayToolkit` is a convenience that seeds default values for the `gateway.{logging,caching,conman}.enabled` properties at the *lowest* precedence (via `GatewayToolkitImportSelector`). Anything you set in `application.yml`, an environment variable, or a `--gateway.x.enabled=true` command-line flag overrides it. The annotation is therefore best understood as "compile-time defaults," not a feature gate.
-
-Each `@Bean` inside the auto-configurations is then guarded by `@ConditionalOnProperty(prefix = "gateway.X", name = "enabled", havingValue = "true")`. If the property is unset and no `@EnableGatewayToolkit` is present, the feature does not load.
+> `1.0.x` shipped an `@EnableGatewayToolkit` annotation that pre-seeded those properties as compile-time defaults. It was removed in `1.1.0` because it didn't actually gate anything and consistently confused readers into thinking it did. Configure features in YAML.
 
 ## Default `enabled` matrix
 

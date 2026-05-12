@@ -22,12 +22,7 @@ gateway-app  →  gateway-starter  →  gateway-core
 
 ## gateway-core
 
-### `com.github.ifrugal.gateway.core.annotation`
-
-| Class | Purpose |
-|---|---|
-| `EnableGatewayToolkit` | Convenience annotation with three boolean attributes (`enableLogging`, `enableCaching`, `enableConman`, all defaulting to `true`). Adds those values as the **lowest-precedence** `PropertySource` via `GatewayToolkitImportSelector`, so YAML / env vars override. The annotation is **not required** — the starter auto-loads from `META-INF/spring/...AutoConfiguration.imports` regardless. |
-| `GatewayToolkitImportSelector` | Implements `ImportSelector`; reads the annotation attributes and registers them as a property source named `gateway-toolkit-annotation-defaults`. |
+> The `com.github.ifrugal.gateway.core.annotation` package existed in `1.0.x` for `@EnableGatewayToolkit` and `GatewayToolkitImportSelector`. Both were removed in `1.1.0` — the starter auto-loads from `META-INF/spring/...AutoConfiguration.imports` and feature gating lives entirely in YAML.
 
 ### `com.github.ifrugal.gateway.core.cache`
 
