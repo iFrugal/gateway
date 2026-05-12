@@ -5,7 +5,7 @@
 # =============================================================================
 
 # Stage 1: Build
-FROM maven:3.9-eclipse-temurin-25-alpine AS builder
+FROM maven:3-eclipse-temurin-26-alpine AS builder
 
 WORKDIR /build
 
