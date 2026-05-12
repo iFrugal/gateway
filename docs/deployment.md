@@ -39,11 +39,10 @@ Add to your `pom.xml`:
 </dependency>
 ```
 
-### Step 2: Enable with Annotation
-In your Spring Boot main application class:
+### Step 2: Add a Standard Spring Boot Application Class
+No enabling annotation is required — the starter auto-configures itself from the classpath:
 ```java
 @SpringBootApplication
-@EnableGatewayToolkit
 public class MyGatewayApplication {
     public static void main(String[] args) {
         SpringApplication.run(MyGatewayApplication.class, args);
@@ -51,16 +50,10 @@ public class MyGatewayApplication {
 }
 ```
 
-### Step 3: Configure with Application Properties
-The `@EnableGatewayToolkit` annotation supports attribute toggles to control feature enablement:
-- `enableLogging()` - Enable request/response logging (default: true)
-- `enableCaching()` - Enable response caching (default: true)
-- `enableConman()` - Enable mock API framework (default: true)
+> `1.0.x` shipped an `@EnableGatewayToolkit` annotation. It was removed in `1.1.0` because the starter already loads auto-configuration unconditionally and the annotation only pre-seeded property defaults that YAML / env vars would override anyway. Configure features via `application.yml` instead — see the next section.
 
-Example:
-```java
-@EnableGatewayToolkit(enableLogging = true, enableCaching = true, enableConman = false)
-```
+### Step 3: Configure Features via application.yml
+Each feature is gated by `gateway.<feature>.enabled`. Defaults: logging and CORS are on; caching, conman and security are off until you flip the flag.
 
 ### Configuration File (application.yml)
 Configure features via YAML properties under the `gateway` prefix:
