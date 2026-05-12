@@ -49,7 +49,7 @@
              renames spring-cloud-starter-gateway into separate WebFlux and
              WebMVC starters and requires a code-level migration. Track the
              migration as its own focused PR — not as a Dependabot click. -->
-        <spring-boot.version>3.5.10</spring-boot.version>
+        <spring-boot.version>3.5.14</spring-boot.version>
         <spring-cloud.version>2025.0.0</spring-cloud.version>
 
         <!-- Lombok — 1.18.30 (the version Spring Boot 3.5.x manages) predates
