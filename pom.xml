@@ -19,9 +19,36 @@
     </description>
     <url>https://github.com/iFrugal/gateway</url>
 
+    <!--
+      SCM URLs use the standard HTTPS form WITHOUT an embedded token.
+
+      Auth for the CI release workflow is injected at runtime by:
+        1) actions/checkout@v6, which configures an http.extraheader
+           credential for github.com using ${{ secrets.GITHUB_TOKEN }}.
+        2) An explicit `git remote set-url origin https://x-access-token:…`
+           in .github/workflows/release.yml as belt-and-suspenders.
+
+      The maven-release-plugin's git SCM provider therefore authenticates
+      successfully when it runs `git push <developerConnection>` against
+      this HTTPS URL — git resolves the credential via the configured
+      helper / extraheader.
+
+      We deliberately do NOT use `git@github.com:…` (SSH) for
+      developerConnection: the CI runner has no SSH key configured.
+
+      We deliberately do NOT embed `${env.GITHUB_TOKEN}` in either URL:
+      the published artifact's pom.xml on Maven Central contains these
+      strings verbatim (Maven publishes the source POM, not a resolved
+      one), so an env-var placeholder ends up as visible noise in the
+      Central artifact and becomes a real-token-leak risk if a
+      maintainer ever runs `mvn release:perform` locally with the env
+      var exported. The previous form (kept until commit before this one)
+      was:
+        scm:git:https://x-access-token:${env.GITHUB_TOKEN}@github.com/…
+    -->
     <scm>
-        <connection>scm:git:https://x-access-token:${env.GITHUB_TOKEN}@github.com/iFrugal/gateway.git</connection>
-        <developerConnection>scm:git:https://x-access-token:${env.GITHUB_TOKEN}@github.com/iFrugal/gateway.git</developerConnection>
+        <connection>scm:git:https://github.com/iFrugal/gateway.git</connection>
+        <developerConnection>scm:git:https://github.com/iFrugal/gateway.git</developerConnection>
         <url>https://github.com/iFrugal/gateway</url>
         <tag>HEAD</tag>
     </scm>

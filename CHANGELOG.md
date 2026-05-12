@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Removed `${env.GITHUB_TOKEN}` placeholder from the `<scm>` `<connection>` and `<developerConnection>` URLs in the root `pom.xml`. Maven publishes the source POM (not a resolved one), so the placeholder ended up as visible noise in every published Maven Central artifact's `pom.xml` — and would have become a real-token-leak risk the moment a maintainer ran `mvn release:perform` locally with that env var exported. Replaced with the standard HTTPS form; CI auth is injected at runtime via `actions/checkout`'s extraheader credential plus the existing `git remote set-url` step in `release.yml`.
 - Reverted a batch of Dependabot bumps that had broken the build. Spring Boot back to 3.5.10 (had been bumped to 4.0.6), Spring Cloud back to 2025.0.0 (had been bumped to 2025.1.1 which renames `spring-cloud-starter-gateway` and broke the reactor), springdoc back to 2.8.15 (the 3.x line targets Spring Boot 4), `json-schema-validator` back to 1.5.6 (the 3.x rewrite changes the `JsonSchema`/`JsonSchemaFactory`/`SpecVersionDetector` API). Docker builder image rolled back from non-LTS Java 26 to the pinned `maven:3.9-eclipse-temurin-25-alpine`. Internal libraries (`lazydevs.version` 1.0.46, `ifrugal-parent` 1.0.15) and the action minor bump (`crazy-max/ghaction-import-gpg` v7) are kept.
 
 ### Changed
