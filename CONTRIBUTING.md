@@ -17,7 +17,7 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ### Submitting Pull Requests
 
-1. Fork the repository and create a feature branch from `master`.
+1. Fork the repository and create a feature branch from `main`.
 2. Write your code following the existing code style.
 3. Add or update unit tests for your changes.
 4. Ensure all tests pass: `mvn clean verify`.

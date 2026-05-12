@@ -2,9 +2,9 @@ name: CI Build
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 # Cancel superseded runs on the same ref so pushes while CI is running
@@ -70,7 +70,7 @@ jobs:
           retention-days: 14
 
       - name: SonarCloud analysis
-        # Only run on direct pushes to master. Feature-branch pushes and
+        # Only run on direct pushes to main. Feature-branch pushes and
         # PRs from forks don't analyse well in SonarCloud's free tier
         # without dedicated branch/PR analysis setup, and there is no
         # value in re-analysing the same code on every feature branch.
@@ -79,7 +79,7 @@ jobs:
         # check, not a release gate. A dead or rotated SONAR_TOKEN should
         # not fail the whole build — surface it as a non-blocking signal
         # and rotate the secret out-of-band.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

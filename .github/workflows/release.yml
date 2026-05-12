@@ -1,8 +1,8 @@
 name: Release to Maven Central
 
-# Intentionally NOT triggered on every push to master. Releases are manual
+# Intentionally NOT triggered on every push to main. Releases are manual
 # (via workflow_dispatch) or tag-driven (pushing a v-prefixed tag).
-# This avoids the pattern where every merge to master starts a release,
+# This avoids the pattern where every merge to main starts a release,
 # which is surprising and hard to roll back.
 on:
   workflow_dispatch:
@@ -37,10 +37,10 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Guard — refuse to release from a non-master branch
+      - name: Guard — refuse to release from a non-main branch
         run: |
-          if [[ "${GITHUB_REF_NAME}" != "master" ]]; then
-            echo "::error::Releases must originate from master, not ${GITHUB_REF_NAME}."
+          if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
+            echo "::error::Releases must originate from main, not ${GITHUB_REF_NAME}."
             exit 1
           fi
 
