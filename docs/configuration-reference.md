@@ -183,7 +183,7 @@ Configuration for the Conman mock API framework for testing and development.
 | `gateway.conman.servlet-uri-mappings` | `GATEWAY_CONMAN_SERVLET_URI_MAPPINGS` | `[/mock/**]` | Ant patterns the Conman reactive handler intercepts. Validated as `@NotEmpty`. |
 | `gateway.conman.mapping-files` | - | `[classpath:conman.yml]` | YAML files loaded at startup. Each file is a top-level list of `MockConfig` entries — see [conman.md](conman.md). Validated as `@NotEmpty`. |
 | `gateway.conman.banner-path` | - | `classpath:conman-banner.txt` | Optional ASCII banner shown in logs on startup. |
-| `gateway.conman.tenant-id-header` | `GATEWAY_CONMAN_TENANT_ID_HEADER` | `tenant-id` | Request header consulted by `ConmanServlet` for tenant resolution. Hardcoded as the literal `"tenant-id"` prior to `1.1.0`; now overridable via this property. Validated as `@NotBlank`; blank values fall back to the default at runtime. |
+| `gateway.conman.tenant-id-header` | `GATEWAY_CONMAN_TENANT_ID_HEADER` | `tenant-id` | Request header consulted by `ConmanHandler` for tenant resolution. Hardcoded as the literal `"tenant-id"` prior to `1.1.0`; now overridable via this property. Validated as `@NotBlank`; blank values fall back to the default at runtime. |
 
 **Example Configuration:**
 ```yaml

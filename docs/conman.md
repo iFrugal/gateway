@@ -2,7 +2,7 @@
 
 Conman is a YAML-driven mock-API framework built into Spring Gateway Toolkit. It lets you stand up stubbed endpoints inside the same Gateway instance — useful for integration tests, contract development, and replacing flaky downstreams during development. Configuration is loaded from YAML files at startup and can be added/replaced at runtime via a REST admin API.
 
-> **Naming note:** the implementation class is called `ConmanServlet` for historical reasons. It is **not** a `jakarta.servlet.Servlet` — Spring Cloud Gateway is reactive, and Conman is a `RouterFunction`-registered reactive handler that returns `Mono<ServerResponse>`.
+> **History note:** this class was named `ConmanServlet` prior to `1.1.0`. The name was historical and misleading — Spring Cloud Gateway is reactive, and this class has nothing to do with `jakarta.servlet.Servlet`. It is a `RouterFunction`-registered reactive handler returning `Mono<ServerResponse>`. Anyone holding a `1.0.x` binary reference to `ConmanServlet` needs to update imports.
 
 ## Configuration properties
 
@@ -37,7 +37,7 @@ gateway:
     tenant-id-header: X-Tenant-Id
 ```
 
-`ConmanServlet`'s legacy single-argument constructor still uses the default header for backwards compatibility; the Spring-managed bean wires through `ConmanProperties` automatically.
+`ConmanHandler`'s legacy single-argument constructor still uses the default header for backwards compatibility; the Spring-managed bean wires through `ConmanProperties` automatically.
 
 ## Mock configuration file format
 
@@ -162,7 +162,7 @@ returns:
 - `GET_/mock/users_tenant-1` — tenant-specific mock
 - `GET_/mock/users_null` — default mock for requests with no `tenant-id` header
 
-`ConmanServlet` reads the `tenant-id` header on each incoming request and looks up the keyed entry. If you publish a mock with `tenantIds: ["tenant-1", "tenant-2"]`, the cache stores one entry per tenant; lookups for any other tenant fall through to the `null`-tenant mock if one exists, otherwise return 404.
+`ConmanHandler` reads the `tenant-id` header on each incoming request and looks up the keyed entry. If you publish a mock with `tenantIds: ["tenant-1", "tenant-2"]`, the cache stores one entry per tenant; lookups for any other tenant fall through to the `null`-tenant mock if one exists, otherwise return 404.
 
 ## Admin REST API
 

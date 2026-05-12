@@ -32,7 +32,7 @@ import java.util.List;
 @Data
 public class ConmanProperties {
 
-    /** Default request header consulted by {@link ConmanServlet} for tenant resolution. */
+    /** Default request header consulted by {@link ConmanHandler} for tenant resolution. */
     public static final String DEFAULT_TENANT_ID_HEADER = "tenant-id";
 
     /**
@@ -60,7 +60,7 @@ public class ConmanProperties {
     /**
      * Name of the request header used to identify the tenant for mock lookup.
      * Matching is case-insensitive at runtime. Defaults to {@code "tenant-id"};
-     * was hardcoded in {@code ConmanServlet} prior to {@code 1.1.0}.
+     * was hardcoded in {@code ConmanHandler} prior to {@code 1.1.0}.
      */
     @NotBlank(message = "gateway.conman.tenant-id-header must not be blank")
     private String tenantIdHeader = DEFAULT_TENANT_ID_HEADER;

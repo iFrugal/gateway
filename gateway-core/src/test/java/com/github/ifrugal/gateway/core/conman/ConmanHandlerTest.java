@@ -17,16 +17,16 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.*;
 
-@DisplayName("ConmanServlet")
-class ConmanServletTest {
+@DisplayName("ConmanHandler")
+class ConmanHandlerTest {
 
     private ConmanCache conmanCache;
-    private ConmanServlet servlet;
+    private ConmanHandler servlet;
 
     @BeforeEach
     void setUp() {
         conmanCache = mock(ConmanCache.class);
-        servlet = new ConmanServlet(conmanCache);
+        servlet = new ConmanHandler(conmanCache);
     }
 
     @Test
@@ -112,7 +112,7 @@ class ConmanServletTest {
     void serviceWithCustomTenantIdHeader() {
         ConmanProperties props = new ConmanProperties();
         props.setTenantIdHeader("X-Tenant");
-        ConmanServlet customServlet = new ConmanServlet(conmanCache, props);
+        ConmanHandler customServlet = new ConmanHandler(conmanCache, props);
 
         MockConfig mockConfig = createMockConfig(HttpMethod.GET, "/mock/tenant", 200,
                 "{\"tenant\":\"found\"}", null);
@@ -131,7 +131,7 @@ class ConmanServletTest {
     void serviceWithBlankCustomHeaderFallsBackToDefault() {
         ConmanProperties props = new ConmanProperties();
         props.setTenantIdHeader("   ");  // misconfiguration — should not break lookup
-        ConmanServlet customServlet = new ConmanServlet(conmanCache, props);
+        ConmanHandler customServlet = new ConmanHandler(conmanCache, props);
 
         MockConfig mockConfig = createMockConfig(HttpMethod.GET, "/mock/tenant", 200,
                 "{}", null);

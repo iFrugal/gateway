@@ -16,13 +16,19 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Reactive handler for mock API requests.
- * Matches incoming requests against configured mocks and returns appropriate responses.
+ * Reactive handler for Conman mock API requests. Registered as a Spring
+ * {@code RouterFunction} target by {@code GatewayToolkitAutoConfiguration};
+ * inject this bean if you need to invoke mock matching from your own code
+ * rather than using static access.
  *
- * <p>This is a Spring-managed bean - inject it where needed rather than using static access.</p>
+ * <p><b>Renamed from {@code ConmanServlet} in {@code 1.1.0}.</b> The original
+ * name was historical and misleading — this class is reactive and has nothing
+ * to do with {@code jakarta.servlet.Servlet}. Anyone holding a binary
+ * reference to {@code ConmanServlet} from {@code 1.0.x} will need to update
+ * imports.</p>
  */
 @Slf4j
-public class ConmanServlet {
+public class ConmanHandler {
 
     private final ConmanCache conmanCache;
     private final String tenantIdHeader;
@@ -33,7 +39,7 @@ public class ConmanServlet {
      * should prefer the two-argument constructor that takes
      * {@link ConmanProperties} so the header name follows YAML configuration.
      */
-    public ConmanServlet(ConmanCache conmanCache) {
+    public ConmanHandler(ConmanCache conmanCache) {
         this(conmanCache, ConmanProperties.DEFAULT_TENANT_ID_HEADER);
     }
 
@@ -42,11 +48,11 @@ public class ConmanServlet {
      * sourced from {@link ConmanProperties#getTenantIdHeader()} so operators
      * can override it via {@code gateway.conman.tenant-id-header} in YAML.
      */
-    public ConmanServlet(ConmanCache conmanCache, ConmanProperties properties) {
+    public ConmanHandler(ConmanCache conmanCache, ConmanProperties properties) {
         this(conmanCache, properties.getTenantIdHeader());
     }
 
-    private ConmanServlet(ConmanCache conmanCache, String tenantIdHeader) {
+    private ConmanHandler(ConmanCache conmanCache, String tenantIdHeader) {
         this.conmanCache = conmanCache;
         this.tenantIdHeader = (tenantIdHeader == null || tenantIdHeader.isBlank())
                 ? ConmanProperties.DEFAULT_TENANT_ID_HEADER
