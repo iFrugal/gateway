@@ -2,9 +2,9 @@ name: CodeQL
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
   schedule:
     # Weekly scan every Monday 04:17 UTC (off-the-hour reduces thundering-herd
     # cost on the GitHub-hosted runner fleet).

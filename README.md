@@ -194,7 +194,7 @@ mvn sonar:sonar -Dsonar.token=$SONAR_TOKEN
 
 ## Quality
 
-CI runs on every push/PR to `master` with JaCoCo code coverage and SonarCloud static analysis. Tests are also executed during Maven Central releases (no `maven.test.skip`).
+CI runs on every push/PR to `main` with JaCoCo code coverage and SonarCloud static analysis. Tests are also executed during Maven Central releases (no `maven.test.skip`).
 
 **Required GitHub Secrets for SonarCloud:** `SONAR_TOKEN`
 
