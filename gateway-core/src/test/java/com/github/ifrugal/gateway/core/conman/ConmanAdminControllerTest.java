@@ -3,18 +3,24 @@ package com.github.ifrugal.gateway.core.conman;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
 import org.springframework.http.HttpMethod;
-import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.http.codec.multipart.FilePart;
+import reactor.core.publisher.Flux;
+import reactor.test.StepVerifier;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @DisplayName("ConmanAdminController")
 class ConmanAdminControllerTest {
+
+    private final DefaultDataBufferFactory bufferFactory = new DefaultDataBufferFactory();
 
     private ConmanCache conmanCache;
     private ConmanAdminController controller;
@@ -92,7 +98,7 @@ class ConmanAdminControllerTest {
     }
 
     @Test
-    @DisplayName("register should accept multipart file and register mocks")
+    @DisplayName("register should accept FilePart and register mocks")
     void register() throws IOException {
         byte[] yamlContent = """
                 - request:
@@ -101,68 +107,102 @@ class ConmanAdminControllerTest {
                   response:
                     body: '{"ok":true}'
                     statusCode: 200
-                """.getBytes();
+                """.getBytes(StandardCharsets.UTF_8);
 
-        MockMultipartFile file = new MockMultipartFile(
-                "registrationFile", "mocks.yml", "application/x-yaml", yamlContent);
+        FilePart filePart = mockFilePart("mocks.yml", yamlContent);
 
-        Map<String, String> result = controller.register(null, file);
+        StepVerifier.create(controller.register(null, filePart))
+                .assertNext(result -> {
+                    assertThat(result).containsEntry("status", "success");
+                    assertThat(result).containsEntry("file", "mocks.yml");
+                })
+                .verifyComplete();
 
-        assertThat(result).containsEntry("status", "success");
-        assertThat(result).containsEntry("file", "mocks.yml");
         verify(conmanCache).register(eq(null), any(java.io.InputStream.class));
     }
 
     @Test
     @DisplayName("register should pass tenant ID to cache")
     void registerWithTenantId() throws IOException {
-        byte[] yamlContent = "[]".getBytes();
-        MockMultipartFile file = new MockMultipartFile(
-                "registrationFile", "tenant-mocks.yml", "application/x-yaml", yamlContent);
+        FilePart filePart = mockFilePart("tenant-mocks.yml", "[]".getBytes(StandardCharsets.UTF_8));
 
-        Map<String, String> result = controller.register("tenant-x", file);
+        StepVerifier.create(controller.register("tenant-x", filePart))
+                .assertNext(result -> assertThat(result).containsEntry("status", "success"))
+                .verifyComplete();
 
-        assertThat(result).containsEntry("status", "success");
         verify(conmanCache).register(eq("tenant-x"), any(java.io.InputStream.class));
     }
 
     @Test
     @DisplayName("register should reject empty file")
     void registerRejectsEmptyFile() {
-        MockMultipartFile emptyFile = new MockMultipartFile(
-                "registrationFile", "empty.yml", "application/x-yaml", new byte[0]);
+        FilePart emptyPart = mockFilePart("empty.yml", new byte[0]);
 
-        assertThatThrownBy(() -> controller.register(null, emptyFile))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("empty");
+        StepVerifier.create(controller.register(null, emptyPart))
+                .expectErrorSatisfies(err -> {
+                    assertThat(err).isInstanceOf(IllegalArgumentException.class);
+                    assertThat(err.getMessage()).contains("empty");
+                })
+                .verify();
     }
 
     @Test
     @DisplayName("register should reject file exceeding size limit")
     void registerRejectsOversizedFile() {
-        // Create a file larger than MAX_UPLOAD_SIZE_BYTES (1 MB)
         byte[] oversizedContent = new byte[(int) ConmanAdminController.MAX_UPLOAD_SIZE_BYTES + 1];
-        MockMultipartFile largeFile = new MockMultipartFile(
-                "registrationFile", "huge.yml", "application/x-yaml", oversizedContent);
+        FilePart largePart = mockFilePart("huge.yml", oversizedContent);
 
-        assertThatThrownBy(() -> controller.register(null, largeFile))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("exceeds maximum size");
+        StepVerifier.create(controller.register(null, largePart))
+                .expectErrorSatisfies(err -> {
+                    assertThat(err).isInstanceOf(IllegalArgumentException.class);
+                    assertThat(err.getMessage()).contains("exceeds maximum size");
+                })
+                .verify();
     }
 
     @Test
     @DisplayName("register should accept file at exactly the size limit")
     void registerAcceptsFileAtLimit() throws IOException {
         byte[] exactContent = new byte[(int) ConmanAdminController.MAX_UPLOAD_SIZE_BYTES];
-        // Fill with valid YAML
-        byte[] yamlPrefix = "[]".getBytes();
+        byte[] yamlPrefix = "[]".getBytes(StandardCharsets.UTF_8);
         System.arraycopy(yamlPrefix, 0, exactContent, 0, yamlPrefix.length);
 
-        MockMultipartFile file = new MockMultipartFile(
-                "registrationFile", "exact.yml", "application/x-yaml", exactContent);
+        FilePart filePart = mockFilePart("exact.yml", exactContent);
 
-        Map<String, String> result = controller.register(null, file);
+        StepVerifier.create(controller.register(null, filePart))
+                .assertNext(result -> assertThat(result).containsEntry("status", "success"))
+                .verifyComplete();
+    }
 
-        assertThat(result).containsEntry("status", "success");
+    @Test
+    @DisplayName("register should reject when content stream is empty (no DataBuffers emitted)")
+    void registerRejectsEmptyContentFlux() {
+        FilePart part = mock(FilePart.class);
+        when(part.filename()).thenReturn("ghost.yml");
+        // No DataBuffer ever arrives — the content publisher completes immediately
+        when(part.content()).thenReturn(Flux.empty());
+
+        StepVerifier.create(controller.register(null, part))
+                .expectErrorSatisfies(err -> {
+                    assertThat(err).isInstanceOf(IllegalArgumentException.class);
+                    assertThat(err.getMessage()).contains("empty");
+                })
+                .verify();
+    }
+
+    // --- helpers ---
+
+    /** Build a FilePart that emits a single DataBuffer with the supplied bytes. */
+    private FilePart mockFilePart(String filename, byte[] bytes) {
+        FilePart part = mock(FilePart.class);
+        when(part.filename()).thenReturn(filename);
+        when(part.content()).thenAnswer(inv -> {
+            if (bytes.length == 0) {
+                return Flux.empty();
+            }
+            DataBuffer buffer = bufferFactory.wrap(bytes);
+            return Flux.just(buffer);
+        });
+        return part;
     }
 }
