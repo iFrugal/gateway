@@ -16,6 +16,9 @@ class ConmanPropertiesTest {
         assertThat(props.getServletUriMappings()).containsExactly("/mock/**");
         assertThat(props.getMappingFiles()).containsExactly("classpath:conman.yml");
         assertThat(props.getBannerPath()).isEqualTo("classpath:conman-banner.txt");
+        assertThat(props.getTenantIdHeader())
+                .isEqualTo(ConmanProperties.DEFAULT_TENANT_ID_HEADER)
+                .isEqualTo("tenant-id");
     }
 
     @Test
@@ -24,8 +27,10 @@ class ConmanPropertiesTest {
         ConmanProperties props = new ConmanProperties();
         props.setEnabled(true);
         props.setServletUriMappings(java.util.List.of("/api/mock/**", "/test/**"));
+        props.setTenantIdHeader("X-Org-Tenant");
 
         assertThat(props.isEnabled()).isTrue();
         assertThat(props.getServletUriMappings()).containsExactly("/api/mock/**", "/test/**");
+        assertThat(props.getTenantIdHeader()).isEqualTo("X-Org-Tenant");
     }
 }

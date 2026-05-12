@@ -1,7 +1,10 @@
 package com.github.ifrugal.gateway.core.config;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -9,7 +12,7 @@ import java.util.List;
 /**
  * Configuration properties for security settings.
  *
- * Example configuration:
+ * <p>Example configuration:
  * <pre>
  * gateway:
  *   security:
@@ -33,22 +36,31 @@ import java.util.List;
  * </pre>
  */
 @ConfigurationProperties(prefix = "gateway.security")
+@Validated
 @Data
 public class SecurityProperties {
 
     /**
-     * Enable or disable security configuration.
+     * Enable or disable security configuration. Defaults to {@code false} —
+     * matches the behaviour of {@link
+     * org.springframework.boot.autoconfigure.condition.ConditionalOnProperty}
+     * on the security auto-configuration ({@code matchIfMissing = false}).
+     * Admin endpoints ({@code /gateway/cache/**}, {@code /conman/admin/**})
+     * are reachable without authentication until this is set to {@code true}.
      */
-    private boolean enabled = true;
+    private boolean enabled = false;
 
     /**
-     * Paths that don't require authentication.
+     * Paths that don't require authentication. Always-protected endpoints
+     * (cache and conman admin) cannot be permitted via this list — they are
+     * hardcoded in {@code SecurityAutoConfiguration}.
      */
     private List<String> guestAllowedPaths = new ArrayList<>();
 
     /**
      * OAuth2 configuration.
      */
+    @Valid
     private OAuth2Config oauth2 = new OAuth2Config();
 
     @Data
@@ -61,11 +73,13 @@ public class SecurityProperties {
         /**
          * OAuth2 provider configuration.
          */
+        @Valid
         private ProviderConfig provider = new ProviderConfig();
 
         /**
          * OAuth2 client configuration.
          */
+        @Valid
         private ClientConfig client = new ClientConfig();
     }
 
@@ -76,6 +90,7 @@ public class SecurityProperties {
         private String tokenUri;
         private String jwkSetUri;
         private String userInfoUri;
+        @NotBlank(message = "gateway.security.oauth2.provider.user-name-attribute must not be blank")
         private String userNameAttribute = "sub";
     }
 

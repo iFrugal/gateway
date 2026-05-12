@@ -16,18 +16,28 @@ gateway:
     mapping-files:                                # YAML files loaded at startup
       - classpath:conman.yml
     banner-path: classpath:conman-banner.txt    # ASCII banner shown in logs on startup
+    tenant-id-header: tenant-id                 # request header used for tenant resolution
 ```
 
 | Property | Default | Notes |
 |---|---|---|
 | `gateway.conman.enabled` | `false` | Auto-configuration is `@ConditionalOnProperty(havingValue="true")`. Without this flag no Conman beans load and no mock endpoints are exposed. |
-| `gateway.conman.servlet-uri-mappings` | `["/mock/**"]` | Ant patterns registered with the `RouterFunction`. Requests not matching any pattern are routed normally. |
-| `gateway.conman.mapping-files` | `["classpath:conman.yml"]` | Each entry is loaded via `lazydevs.SerDe.YAML.deserializeToList`. Treat the contents as trusted — see [security.md](security.md) for the SnakeYAML safety discussion. |
+| `gateway.conman.servlet-uri-mappings` | `["/mock/**"]` | Ant patterns registered with the `RouterFunction`. Requests not matching any pattern are routed normally. Validated as `@NotEmpty`. |
+| `gateway.conman.mapping-files` | `["classpath:conman.yml"]` | Each entry is loaded via `lazydevs.SerDe.YAML.deserializeToList`. Treat the contents as trusted — see [security.md](security.md) for the SnakeYAML safety discussion. Validated as `@NotEmpty`. |
 | `gateway.conman.banner-path` | `classpath:conman-banner.txt` | Optional ASCII banner. |
+| `gateway.conman.tenant-id-header` | `"tenant-id"` | Request header consulted for tenant resolution. Hardcoded as `"tenant-id"` prior to `1.1.0`; now configurable. Blank values fall back to the default. Validated as `@NotBlank`. |
 
 ### Tenant header
 
-The tenant identifier is read from the **hardcoded `tenant-id` request header** in `ConmanServlet`. The header name is not currently configurable — see [the open issue](#known-gaps) below.
+The tenant identifier is read from the request header named by `gateway.conman.tenant-id-header` (default: `tenant-id`). Override it in YAML if your platform uses a different convention (e.g. `X-Tenant-Id`):
+
+```yaml
+gateway:
+  conman:
+    tenant-id-header: X-Tenant-Id
+```
+
+`ConmanServlet`'s legacy single-argument constructor still uses the default header for backwards compatibility; the Spring-managed bean wires through `ConmanProperties` automatically.
 
 ## Mock configuration file format
 
@@ -168,7 +178,7 @@ Mounted at `/conman/admin/**` when `gateway.conman.enabled=true`. **These endpoi
 
 ### Upload size limit
 
-The 1 MB check in `ConmanAdminController.register` runs *after* Spring's reactive multipart codec has already buffered the upload. To enforce the cap earlier, set:
+The bundled `gateway-app/src/main/resources/application.yml` ships with the framework-level multipart caps already configured:
 
 ```yaml
 spring:
@@ -178,9 +188,12 @@ spring:
     multipart:
       max-in-memory-size: 1MB
       max-disk-usage-per-part: 2MB
+      max-parts: 8
 ```
 
-in your `application.yml`. Without those, an attacker uploading a 100 MB part would still buffer the bytes before being rejected by the controller.
+These ensure an oversized upload is rejected by the codec **before** it reaches `ConmanAdminController.register`. The controller's own 1 MB check is a defence-in-depth secondary gate.
+
+If you embed `gateway-starter` in your own Spring Boot application (rather than running `gateway-app`), copy the snippet above into your `application.yml`. Without it, an attacker uploading a 100 MB part can buffer the bytes before the controller-level check trips.
 
 ## Validation behaviour
 
@@ -196,7 +209,6 @@ in your `application.yml`. Without those, an attacker uploading a 100 MB part wo
 
 ## Known gaps
 
-- **Tenant header is hardcoded.** `ConmanServlet` reads `req.headers().firstHeader("tenant-id")` directly; there is no `gateway.conman.tenant-id-header` property today. Tracking issue: making the header configurable is a one-property change to `ConmanProperties` plus wiring through `ConmanServlet`.
 - **YAML deserialisation safety.** Mock files are deserialised through `lazydevs.SerDe.YAML.deserializeToList`. Treat all `mapping-files` and `/conman/admin/register` uploads as trusted input until that path is audited for SnakeYAML safe-constructor usage.
 
 ## Best practices

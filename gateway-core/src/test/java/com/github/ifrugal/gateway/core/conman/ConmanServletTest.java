@@ -108,6 +108,44 @@ class ConmanServletTest {
     }
 
     @Test
+    @DisplayName("should honour configurable tenant-id header from ConmanProperties")
+    void serviceWithCustomTenantIdHeader() {
+        ConmanProperties props = new ConmanProperties();
+        props.setTenantIdHeader("X-Tenant");
+        ConmanServlet customServlet = new ConmanServlet(conmanCache, props);
+
+        MockConfig mockConfig = createMockConfig(HttpMethod.GET, "/mock/tenant", 200,
+                "{\"tenant\":\"found\"}", null);
+
+        // Tenant value arrives on X-Tenant, not on the default "tenant-id"
+        ServerRequest request = mockServerRequest(HttpMethod.GET, "/mock/tenant", "tenant-z", "X-Tenant");
+        when(conmanCache.getMockConfig(HttpMethod.GET, "/mock/tenant", "tenant-z")).thenReturn(mockConfig);
+
+        StepVerifier.create(customServlet.service(request))
+                .assertNext(response -> assertThat(response.statusCode()).isEqualTo(HttpStatus.OK))
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("should fall back to default header when configured tenant-id-header is blank")
+    void serviceWithBlankCustomHeaderFallsBackToDefault() {
+        ConmanProperties props = new ConmanProperties();
+        props.setTenantIdHeader("   ");  // misconfiguration — should not break lookup
+        ConmanServlet customServlet = new ConmanServlet(conmanCache, props);
+
+        MockConfig mockConfig = createMockConfig(HttpMethod.GET, "/mock/tenant", 200,
+                "{}", null);
+
+        // Tenant arrives on the DEFAULT "tenant-id" header
+        ServerRequest request = mockServerRequest(HttpMethod.GET, "/mock/tenant", "tenant-d");
+        when(conmanCache.getMockConfig(HttpMethod.GET, "/mock/tenant", "tenant-d")).thenReturn(mockConfig);
+
+        StepVerifier.create(customServlet.service(request))
+                .assertNext(response -> assertThat(response.statusCode()).isEqualTo(HttpStatus.OK))
+                .verifyComplete();
+    }
+
+    @Test
     @DisplayName("getRequestContext should extract request metadata")
     void getRequestContext() {
         ServerRequest request = mockServerRequest(HttpMethod.GET, "/mock/context", null);
@@ -160,6 +198,10 @@ class ConmanServletTest {
     // --- Helper methods ---
 
     private ServerRequest mockServerRequest(HttpMethod method, String path, String tenantId) {
+        return mockServerRequest(method, path, tenantId, "tenant-id");
+    }
+
+    private ServerRequest mockServerRequest(HttpMethod method, String path, String tenantId, String headerName) {
         MockServerHttpRequest httpRequest = MockServerHttpRequest.method(method, path).build();
         MockServerWebExchange exchange = MockServerWebExchange.from(httpRequest);
 
@@ -170,7 +212,9 @@ class ConmanServletTest {
         when(request.queryParams()).thenReturn(new org.springframework.util.LinkedMultiValueMap<>());
 
         ServerRequest.Headers headers = mock(ServerRequest.Headers.class);
-        when(headers.firstHeader("tenant-id")).thenReturn(tenantId);
+        // Default lookup: no header. The specific header name returns the configured value.
+        when(headers.firstHeader(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+        when(headers.firstHeader(headerName)).thenReturn(tenantId);
         when(headers.asHttpHeaders()).thenReturn(new org.springframework.http.HttpHeaders());
         when(request.headers()).thenReturn(headers);
 

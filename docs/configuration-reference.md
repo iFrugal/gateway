@@ -180,11 +180,10 @@ Configuration for the Conman mock API framework for testing and development.
 | YAML Property | Environment Variable | Default | Description |
 |---|---|---|---|
 | `gateway.conman.enabled` | `GATEWAY_CONMAN_ENABLED` | `false` | Enable/disable Conman mock APIs. Auto-configuration is `@ConditionalOnProperty(havingValue="true")` — if unset, no Conman beans load. |
-| `gateway.conman.servlet-uri-mappings` | `GATEWAY_CONMAN_SERVLET_URI_MAPPINGS` | `[/mock/**]` | Ant patterns the Conman reactive handler intercepts. |
-| `gateway.conman.mapping-files` | - | `[classpath:conman.yml]` | YAML files loaded at startup. Each file is a top-level list of `MockConfig` entries — see [conman.md](conman.md). |
+| `gateway.conman.servlet-uri-mappings` | `GATEWAY_CONMAN_SERVLET_URI_MAPPINGS` | `[/mock/**]` | Ant patterns the Conman reactive handler intercepts. Validated as `@NotEmpty`. |
+| `gateway.conman.mapping-files` | - | `[classpath:conman.yml]` | YAML files loaded at startup. Each file is a top-level list of `MockConfig` entries — see [conman.md](conman.md). Validated as `@NotEmpty`. |
 | `gateway.conman.banner-path` | - | `classpath:conman-banner.txt` | Optional ASCII banner shown in logs on startup. |
-
-> **Tenant header is hardcoded.** Conman reads the tenant from the literal request header `tenant-id` — there is no `gateway.conman.tenant-id-header` property today. Setting one in YAML has no effect. See [conman.md — Known gaps](conman.md#known-gaps).
+| `gateway.conman.tenant-id-header` | `GATEWAY_CONMAN_TENANT_ID_HEADER` | `tenant-id` | Request header consulted by `ConmanServlet` for tenant resolution. Hardcoded as the literal `"tenant-id"` prior to `1.1.0`; now overridable via this property. Validated as `@NotBlank`; blank values fall back to the default at runtime. |
 
 **Example Configuration:**
 ```yaml
