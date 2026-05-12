@@ -58,10 +58,28 @@ updates:
       - "dependencies"
       - "docker"
     ignore:
-      # Pin Docker base images to the Java 25 LTS line. Eclipse Temurin
-      # publishes non-LTS images (26, 27) that Dependabot would otherwise
-      # offer; ignore anything that is not a 25-* tag.
+      # Hard pin to the Java 25 LTS line. Eclipse Temurin ships non-LTS
+      # images (26, 27, 28) between LTS releases; reject any tag that
+      # rolls us to those interim versions. The previous filter used
+      # ">=3.10-eclipse-temurin-26" which Dependabot couldn't satisfy
+      # against the actual proposed tag "3.9-eclipse-temurin-26-alpine"
+      # (same maven version, only JDK changed) — that bump still slipped
+      # through. Wildcards on the JDK-version segment fix it.
+      #
+      # Re-evaluate when Java 29 LTS GA arrives (Sep 2027). Bumping the
+      # baseline is then its own explicit PR — same pattern as Java 25.
       - dependency-name: "maven"
-        versions: [">=3.10-eclipse-temurin-26", ">=3.10-eclipse-temurin-27"]
+        versions:
+          - "*-eclipse-temurin-26*"
+          - "*-eclipse-temurin-27*"
+          - "*-eclipse-temurin-28*"
       - dependency-name: "eclipse-temurin"
-        versions: [">=26-jre", ">=27-jre"]
+        versions:
+          - "26*"
+          - "27*"
+          - "28*"
+      # Belt-and-suspenders: any major bump of the maven image itself
+      # (e.g. maven:3.x -> maven:4.x) is a build-tool generation change,
+      # not a routine patch; require manual review.
+      - dependency-name: "maven"
+        update-types: ["version-update:semver-major"]
