@@ -12,7 +12,11 @@ class SecurityPropertiesTest {
     @DisplayName("should have sensible defaults")
     void defaults() {
         SecurityProperties props = new SecurityProperties();
-        assertThat(props.isEnabled()).isTrue();
+        // Defaults to false to match SecurityAutoConfiguration's
+        // @ConditionalOnProperty(matchIfMissing = false) — admin endpoints
+        // are reachable without authentication until this is explicitly
+        // flipped to true.
+        assertThat(props.isEnabled()).isFalse();
         assertThat(props.getGuestAllowedPaths()).isEmpty();
         assertThat(props.getOauth2()).isNotNull();
         assertThat(props.getOauth2().isEnabled()).isFalse();
