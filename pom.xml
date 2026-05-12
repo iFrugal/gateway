@@ -54,7 +54,7 @@
 
         <!-- Library versions -->
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
-        <lazydevs.version>1.0.40</lazydevs.version>
+        <lazydevs.version>1.0.46</lazydevs.version>
         <json-schema-validator.version>3.0.2</json-schema-validator.version>
 
         <!-- JaCoCo — 0.8.12 bundles an ASM that cannot read Java 25 bytecode
