@@ -148,4 +148,71 @@ class MockConfigTest {
         assertThat(config.getTenantId()).isEqualTo("t1");
         assertThat(config.getTenantIds()).containsExactlyInAnyOrder("t1", "t2");
     }
+
+    // ---- precompileBodySchemaIfPresent --------------------------------------
+
+    @Test
+    @DisplayName("precompileBodySchemaIfPresent should compile inline schema and set bodySchemaInternal")
+    void precompileCompilesInlineSchema() {
+        MockConfig.RequestValidation v = new MockConfig.RequestValidation();
+        // networknt's SpecVersionDetector reads the $schema declaration to
+        // pick the JSON Schema spec version; without it, compilation throws
+        // with "'$schema' tag is not present". Mock authors are expected to
+        // include $schema; this test reflects that real-world contract.
+        v.setBodySchema(
+                "{" +
+                "  \"$schema\":\"https://json-schema.org/draft/2020-12/schema\"," +
+                "  \"type\":\"object\"," +
+                "  \"properties\":{\"id\":{\"type\":\"integer\"}}," +
+                "  \"required\":[\"id\"]" +
+                "}");
+
+        // Pre-condition: not yet compiled
+        assertThat(v.getBodySchemaInternal()).isNull();
+
+        v.precompileBodySchemaIfPresent();
+
+        // Post-condition: schema is compiled, no exception thrown
+        assertThat(v.getBodySchemaInternal()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("precompileBodySchemaIfPresent should be idempotent (second call is a no-op)")
+    void precompileIdempotent() {
+        MockConfig.RequestValidation v = new MockConfig.RequestValidation();
+        v.setBodySchema(
+                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}");
+
+        v.precompileBodySchemaIfPresent();
+        com.networknt.schema.JsonSchema firstCompiled = v.getBodySchemaInternal();
+        assertThat(firstCompiled).isNotNull();
+
+        // Calling again must NOT replace the cached instance.
+        v.precompileBodySchemaIfPresent();
+        assertThat(v.getBodySchemaInternal()).isSameAs(firstCompiled);
+    }
+
+    @Test
+    @DisplayName("precompileBodySchemaIfPresent should be a no-op when no schema is set")
+    void precompileNoSchemaNoOp() {
+        MockConfig.RequestValidation v = new MockConfig.RequestValidation();
+
+        v.precompileBodySchemaIfPresent();
+
+        assertThat(v.getBodySchemaInternal()).isNull();
+    }
+
+    @Test
+    @DisplayName("precompileBodySchemaIfPresent should throw at load time for malformed schema")
+    void precompileFailsLoudOnMalformedSchema() {
+        MockConfig.RequestValidation v = new MockConfig.RequestValidation();
+        v.setBodySchema("{ this is not valid JSON");
+
+        // The eager-compile contract: misconfigured mocks fail at load time,
+        // not on the first request that hits them.
+        org.assertj.core.api.Assertions
+                .assertThatThrownBy(v::precompileBodySchemaIfPresent)
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to compile JSON schema");
+    }
 }
