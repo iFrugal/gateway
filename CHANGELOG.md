@@ -30,6 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `.github/dependabot.yml` for Maven, GitHub Actions, and Docker base image.
 - `.github/workflows/codeql.yml` with the `security-and-quality` query suite.
+- `docs/getting-started.md` — 5-minute walk-through from an empty Spring Boot project to a working gateway with one logged and one cached route.
+- `docs/troubleshooting.md` — common errors grouped by symptom (startup, logging, caching, security, Conman, CI), each with the root cause and the fix.
+- `docs/extension-points.md` — consolidated catalogue of override hooks (`CacheProvider`, `LoggingAndCachingWebFilter`, `SecurityWebFilterChain`, `ConmanHandler`, OpenAPI customisers).
+- `docs/versioning.md` — SemVer policy, deprecation rules, Java/Spring Boot baseline policy, list of currently-deprecated members.
+- README now leads with these four under a "Start here" section.
 
 ### Removed
 - `TODO.md` — every class on its checklist already had tests; the file was stale.

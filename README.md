@@ -158,16 +158,27 @@ See [Configuration Reference](docs/configuration-reference.md) for all propertie
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [Architecture Overview](docs/architecture-overview.md) | High-level design, request flow, and design principles |
-| [Module Structure](docs/module-structure.md) | Package layout, key classes, and extension points |
-| [Caching](docs/caching.md) | Cache providers, key generation, and management API |
-| [Logging](docs/logging.md) | Structured logging, body capture, and ignore paths |
-| [Conman Mock Framework](docs/conman.md) | Mock configuration, multi-tenancy, and validation |
-| [Security](docs/security.md) | OAuth2, JWT, CORS, and access control |
-| [Configuration Reference](docs/configuration-reference.md) | Complete property reference with defaults |
-| [Deployment Guide](docs/deployment.md) | Building, Docker, production, and SonarCloud |
+**Start here:**
+
+| Document | When to read it |
+|----------|-----------------|
+| [Getting Started](docs/getting-started.md) | First-time setup. 5-minute walk-through from an empty Spring Boot project to a working logged-and-cached gateway. |
+| [Troubleshooting](docs/troubleshooting.md) | Something didn't work. Grouped by symptom (startup / logging / caching / security / Conman / CI). |
+| [Versioning Policy](docs/versioning.md) | What we promise (and don't) between releases — SemVer commitments, deprecation rules, Java baseline policy. |
+
+**Reference:**
+
+| Document | Scope |
+|----------|-------|
+| [Architecture Overview](docs/architecture-overview.md) | High-level design, request flow, default-enabled matrix, reactive-vs-virtual-threads stance |
+| [Module Structure](docs/module-structure.md) | Package layout, key classes, what's `public` vs internal |
+| [Configuration Reference](docs/configuration-reference.md) | Every `gateway.*` property with default and env-var equivalent |
+| [Caching](docs/caching.md) | Cache providers, key generation, management API |
+| [Logging](docs/logging.md) | Structured logging, body capture, sensitive-header redaction |
+| [Conman Mock Framework](docs/conman.md) | Mock YAML format, multi-tenancy, admin REST API |
+| [Security](docs/security.md) | OAuth2, JWT, hardcoded permit-all paths, admin endpoint protection |
+| [Extension Points](docs/extension-points.md) | How to plug in a custom cache backend, replace the filter, customise Swagger UI, etc. |
+| [Deployment Guide](docs/deployment.md) | Building, Docker, profiles, SonarCloud wiring |
 
 ## Project Structure
 
