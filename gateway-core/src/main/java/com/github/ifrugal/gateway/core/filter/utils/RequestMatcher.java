@@ -1,5 +1,6 @@
 package com.github.ifrugal.gateway.core.filter.utils;
 
+import com.github.ifrugal.gateway.core.annotation.Internal;
 import com.github.ifrugal.gateway.core.config.CachingProperties;
 import com.github.ifrugal.gateway.core.config.LoggingProperties;
 import org.springframework.http.HttpMethod;
@@ -11,7 +12,14 @@ import java.util.Optional;
 
 /**
  * Utility class for matching requests against configured logging and caching rules.
+ *
+ * <p>{@code @Internal}: this class is the matcher used by the bundled
+ * {@code LoggingAndCachingWebFilter} and is not designed for downstream
+ * extension. If you need different matching logic, replace
+ * {@code LoggingAndCachingWebFilter} outright (it is {@code @ConditionalOnMissingBean})
+ * and call your own matcher inside.
  */
+@Internal
 public class RequestMatcher {
 
     private static final AntPathMatcher pathMatcher = new AntPathMatcher();

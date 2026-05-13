@@ -24,7 +24,7 @@ For a Maven library, "public API" extends past what `javac` calls public. We com
 
 We do **NOT** commit to compatibility on:
 
-- Classes marked `@Internal` (Spring's), or classes the docs explicitly flag as implementation details (see [extension-points.md — Not an extension point](extension-points.md#not-an-extension-point-internal-classes)).
+- Classes, methods, or fields marked with the project-local `@com.github.ifrugal.gateway.core.annotation.Internal` annotation. These are `public` for Spring's wiring or cross-package reasons within this library but are not part of the supported API. They may be renamed, repackaged, or removed in any release (including PATCH). See [extension-points.md → Not an extension point](extension-points.md#not-an-extension-point-internal-classes) for the current list and the supported alternatives (replace-via-`@ConditionalOnMissingBean` rather than subclass).
 - The runtime behaviour of `lazydevs.SerDe.YAML` and other transitive dependencies — those follow their own versioning.
 - The exact wire format of structured log lines (the *fields* are part of the API; the JSON layout / field order is not).
 - Internal cache-key formats, internal thread scheduling, internal map / collection types.

@@ -1,5 +1,6 @@
 package com.github.ifrugal.gateway.core.filter;
 
+import com.github.ifrugal.gateway.core.annotation.Internal;
 import com.github.ifrugal.gateway.core.config.LoggingProperties;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.ServerWebExchangeDecorator;
@@ -9,6 +10,7 @@ import org.springframework.web.server.ServerWebExchangeDecorator;
  * capabilities. Both wrappers honour a single {@code maxCaptureBytes} cap so
  * captured copies cannot grow unbounded on the heap.
  */
+@Internal
 public class BodyCaptureExchange extends ServerWebExchangeDecorator {
 
     private final BodyCaptureRequest bodyCaptureRequest;

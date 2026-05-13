@@ -1,5 +1,6 @@
 package com.github.ifrugal.gateway.core.filter;
 
+import com.github.ifrugal.gateway.core.annotation.Internal;
 import com.github.ifrugal.gateway.core.cache.CacheProvider;
 import com.github.ifrugal.gateway.core.config.CachingProperties;
 import com.github.ifrugal.gateway.core.config.LoggingProperties;
@@ -32,7 +33,16 @@ import java.util.UUID;
 /**
  * WebFilter that provides request/response logging and response caching.
  * Runs at highest precedence to capture all requests.
+ *
+ * <p><b>Not for direct subclassing.</b> The class is {@code @Internal}: its
+ * shape (private helpers, capture-decision logic, cache-key algorithm) is
+ * tuned for the bundled body-capture pair and is expected to change without
+ * a MAJOR bump. The supported way to override behaviour is to register your
+ * own {@link WebFilter} bean as a {@code LoggingAndCachingWebFilter} —
+ * Spring's {@code @ConditionalOnMissingBean} guard on the auto-configured
+ * bean steps aside. See {@code docs/extension-points.md} for the recipe.
  */
+@Internal
 @Slf4j
 public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
 

@@ -1,5 +1,6 @@
 package com.github.ifrugal.gateway.core.filter;
 
+import com.github.ifrugal.gateway.core.annotation.Internal;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.core.io.buffer.DataBufferFactory;
 import org.springframework.core.io.buffer.DataBufferUtils;
@@ -27,6 +28,7 @@ import java.nio.charset.StandardCharsets;
  * <p>A value of {@code maxCaptureBytes <= 0} disables truncation entirely
  * (legacy behaviour).
  */
+@Internal
 public class BodyCaptureRequest extends ServerHttpRequestDecorator {
 
     /** Marker appended to a captured body when truncation occurs. */

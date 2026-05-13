@@ -198,13 +198,14 @@ The toolkit will not interfere — its own `gateway.*` properties and your `myap
 
 ## Not an extension point: internal classes
 
-These are `public` for historical reasons but should be treated as implementation details. They may change between minor versions:
+These are `public` because Spring's wiring or cross-package usage in this same library requires it, but they should be treated as implementation details. They are marked with the project-local `@com.github.ifrugal.gateway.core.annotation.Internal` annotation (since `1.1.0`) and may change between minor — or even patch — versions:
 
-- `BodyCaptureRequest`, `BodyCaptureResponse`, `BodyCaptureExchange`
-- `RequestMatcher` (in `core.filter.utils`)
+- `BodyCaptureRequest`, `BodyCaptureResponse`, `BodyCaptureExchange` (`core.filter`)
+- `LoggingAndCachingWebFilter` (`core.filter`) — replace it whole via `@ConditionalOnMissingBean` rather than subclass
+- `RequestMatcher` (`core.filter.utils`)
 - The `lazydevs.SerDe.YAML` adapter usage inside `ConmanCache`
 
-If you need behaviour from one of these, file an issue describing the use case rather than subclassing — we'd rather expose a deliberate hook than commit to the current shape.
+API-audit tools (`revapi`, `apilyzer`, IntelliJ structural search) recognise the `Internal` naming convention and will warn or fail the build when downstream code subclasses or references annotated members. If you need behaviour from one of these, file an issue describing the use case rather than subclassing — we'd rather expose a deliberate hook than commit to the current shape.
 
 ## Quick reference
 

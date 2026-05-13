@@ -1,5 +1,6 @@
 package com.github.ifrugal.gateway.core.filter;
 
+import com.github.ifrugal.gateway.core.annotation.Internal;
 import com.github.ifrugal.gateway.core.config.LoggingProperties;
 import org.reactivestreams.Publisher;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -30,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *       only the captured copy is bounded.</li>
  * </ul>
  */
+@Internal
 public class BodyCaptureResponse extends ServerHttpResponseDecorator {
 
     /** Marker appended to a captured body when truncation occurs. */
