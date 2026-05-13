@@ -95,6 +95,14 @@ public class ConmanCache {
                 if (null != tenantId) {
                     mockConfig.setTenantId(tenantId);
                 }
+                // Eagerly compile any inline JSON schema so the validator hot
+                // path doesn't race two concurrent first-time requests through
+                // JsonSchemaFactory. A misconfigured schema fails loud here at
+                // load time, not on the first request that happens to hit
+                // this mock.
+                if (mockConfig.getRequest() != null && mockConfig.getRequest().getValidation() != null) {
+                    mockConfig.getRequest().getValidation().precompileBodySchemaIfPresent();
+                }
                 setMockConfig(mockConfig);
             });
         } catch (Exception e) {

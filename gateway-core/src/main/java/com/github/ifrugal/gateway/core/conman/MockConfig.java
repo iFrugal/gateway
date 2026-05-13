@@ -1,7 +1,10 @@
 package com.github.ifrugal.gateway.core.conman;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.networknt.schema.JsonSchema;
+import com.networknt.schema.JsonSchemaFactory;
+import com.networknt.schema.SpecVersionDetector;
 import lazydevs.mapper.utils.SerDe;
 import lazydevs.mapper.utils.engine.TemplateEngine;
 import lazydevs.mapper.utils.file.FileUtils;
@@ -95,6 +98,44 @@ public class MockConfig {
                 }
             }
             return this.bodySchema;
+        }
+
+        /**
+         * Eagerly compile the JSON schema (if any) and stash the result in
+         * {@code bodySchemaInternal}. Idempotent: returns immediately if the
+         * schema has already been compiled, so callers can invoke this on
+         * every {@code register()} call without paying twice.
+         *
+         * <p>Called by {@link ConmanCache#register} after each mock is loaded
+         * so the validator hot path doesn't have to compile under concurrent
+         * load. Prior to this, the first two concurrent requests for the
+         * same mock could each compile the same schema and race on the
+         * {@code setBodySchemaInternal} assignment — harmless (last-write-
+         * wins, both writes produce equivalent {@link JsonSchema} instances)
+         * but wasteful and not provably correct under all schedulings.
+         *
+         * <p>Compilation failures (malformed schema JSON, unrecognised
+         * spec version) propagate as {@link RuntimeException} so that
+         * misconfigured mocks fail loud at load time, not on the first
+         * request that hits them.
+         */
+        public void precompileBodySchemaIfPresent() {
+            if (this.bodySchemaInternal != null) {
+                return;
+            }
+            String schemaText = getBodySchema();
+            if (schemaText == null || schemaText.isEmpty()) {
+                return;
+            }
+            try {
+                JsonNode schemaJsonNode = SerDe.JSON.getOBJECT_MAPPER().readTree(schemaText);
+                this.bodySchemaInternal = JsonSchemaFactory
+                        .getInstance(SpecVersionDetector.detect(schemaJsonNode))
+                        .getSchema(schemaJsonNode);
+            } catch (Exception e) {
+                throw new RuntimeException(
+                        "Failed to compile JSON schema for mock validation: " + e.getMessage(), e);
+            }
         }
     }
 
