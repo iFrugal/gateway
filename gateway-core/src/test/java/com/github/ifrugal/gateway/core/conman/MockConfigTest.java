@@ -155,7 +155,17 @@ class MockConfigTest {
     @DisplayName("precompileBodySchemaIfPresent should compile inline schema and set bodySchemaInternal")
     void precompileCompilesInlineSchema() {
         MockConfig.RequestValidation v = new MockConfig.RequestValidation();
-        v.setBodySchema("{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"integer\"}},\"required\":[\"id\"]}");
+        // networknt's SpecVersionDetector reads the $schema declaration to
+        // pick the JSON Schema spec version; without it, compilation throws
+        // with "'$schema' tag is not present". Mock authors are expected to
+        // include $schema; this test reflects that real-world contract.
+        v.setBodySchema(
+                "{" +
+                "  \"$schema\":\"https://json-schema.org/draft/2020-12/schema\"," +
+                "  \"type\":\"object\"," +
+                "  \"properties\":{\"id\":{\"type\":\"integer\"}}," +
+                "  \"required\":[\"id\"]" +
+                "}");
 
         // Pre-condition: not yet compiled
         assertThat(v.getBodySchemaInternal()).isNull();
@@ -170,7 +180,8 @@ class MockConfigTest {
     @DisplayName("precompileBodySchemaIfPresent should be idempotent (second call is a no-op)")
     void precompileIdempotent() {
         MockConfig.RequestValidation v = new MockConfig.RequestValidation();
-        v.setBodySchema("{\"type\":\"object\"}");
+        v.setBodySchema(
+                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}");
 
         v.precompileBodySchemaIfPresent();
         com.networknt.schema.JsonSchema firstCompiled = v.getBodySchemaInternal();
