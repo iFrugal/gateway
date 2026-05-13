@@ -175,7 +175,20 @@ public class SecurityProperties {
         @JsonIgnore
         private transient java.util.regex.Pattern compiledPattern;
 
-        void compilePattern() {
+        /**
+         * Compile this rule's {@link #extract} regex (if any) and store
+         * the result in {@link #compiledPattern}. Idempotent — calling
+         * this on a rule with no {@code extract} clears the cached
+         * pattern; calling it twice on the same rule recompiles.
+         *
+         * <p>{@code public} so application code that programmatically
+         * builds rules outside YAML binding can invoke it directly. Test
+         * code in sibling modules also relies on this access level.
+         *
+         * @throws IllegalStateException if {@link #extract} is set but
+         *                               is not a valid regex
+         */
+        public void compilePattern() {
             if (extract == null || extract.isEmpty()) {
                 this.compiledPattern = null;
                 return;
