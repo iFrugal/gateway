@@ -1,6 +1,7 @@
 package com.github.ifrugal.gateway.autoconfigure;
 
 import com.github.ifrugal.gateway.core.config.SecurityProperties;
+import com.github.ifrugal.gateway.core.filter.JwtClaimsToHeadersWebFilter;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.security.*;
@@ -131,6 +132,34 @@ public class SecurityAutoConfiguration {
                 path.endsWith(".js") ||
                 path.endsWith(".png") ||
                 path.endsWith(".ico");
+    }
+
+    /**
+     * Propagate selected JWT claims as outbound request headers so
+     * downstream services can read identity / tenant / role information
+     * without re-parsing the token. Bean is only registered when at least
+     * one rule is declared under
+     * {@code gateway.security.oauth2.claim-headers}; downstream apps that
+     * don't need this feature pay zero filter cost.
+     *
+     * <p>Regex patterns embedded in the rules are compiled eagerly at
+     * startup via {@link SecurityProperties.OAuth2Config#compilePatterns()}
+     * so a malformed pattern surfaces as a boot-time error rather than a
+     * per-request stack trace.
+     */
+    @Bean
+    @ConditionalOnMissingBean(JwtClaimsToHeadersWebFilter.class)
+    public JwtClaimsToHeadersWebFilter jwtClaimsToHeadersWebFilter() {
+        SecurityProperties.OAuth2Config oauth2 = securityProperties.getOauth2();
+        if (oauth2.getClaimHeaders().isEmpty()) {
+            log.debug("gateway.security.oauth2.claim-headers is empty; "
+                    + "registering a pass-through JwtClaimsToHeadersWebFilter.");
+        } else {
+            log.info("Registering JwtClaimsToHeadersWebFilter with {} rule(s).",
+                    oauth2.getClaimHeaders().size());
+            oauth2.compilePatterns();
+        }
+        return new JwtClaimsToHeadersWebFilter(oauth2.getClaimHeaders());
     }
 
     /**

@@ -206,6 +206,39 @@ These are `public` for historical reasons but should be treated as implementatio
 
 If you need behaviour from one of these, file an issue describing the use case rather than subclassing — we'd rather expose a deliberate hook than commit to the current shape.
 
+## Replace the JWT-claims-to-headers filter
+
+The bundled `JwtClaimsToHeadersWebFilter` handles 1:1 claim → header mapping, optional regex extraction, and a simple `if-previous-blank` fallback (see [security.md](security.md#jwt-claims--outbound-headers)). For richer logic — conditional injection based on which auth flow issued the JWT, tenant-id → tenant-code dictionary lookups, multi-claim composition — register your own filter:
+
+```java
+@Configuration
+public class CustomClaimHeadersConfig {
+
+    @Bean
+    public JwtClaimsToHeadersWebFilter jwtClaimsToHeadersWebFilter(MyTenantRegistry tenants) {
+        // The toolkit's auto-configured bean steps aside (@ConditionalOnMissingBean).
+        return new JwtClaimsToHeadersWebFilter(List.of()) {
+            @Override
+            public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+                return ReactiveSecurityContextHolder.getContext()
+                        .map(SecurityContext::getAuthentication)
+                        .filter(JwtAuthenticationToken.class::isInstance)
+                        .cast(JwtAuthenticationToken.class)
+                        .flatMap(auth -> {
+                            Map<String, Object> claims = auth.getToken().getClaims();
+                            ServerHttpRequest.Builder b = exchange.getRequest().mutate();
+                            // ...your business logic: extract, look up, branch, inject...
+                            return chain.filter(exchange.mutate().request(b.build()).build());
+                        })
+                        .switchIfEmpty(chain.filter(exchange));
+            }
+        };
+    }
+}
+```
+
+The toolkit's `@ConditionalOnMissingBean(JwtClaimsToHeadersWebFilter.class)` guard ensures only your bean is registered. Alternatively, subclass `JwtClaimsToHeadersWebFilter` and add behaviour on top of the YAML rules.
+
 ## Quick reference
 
 | What you want to do | Bean to register | The toolkit bean it replaces (`@ConditionalOnMissingBean`) |
@@ -213,6 +246,7 @@ If you need behaviour from one of these, file an issue describing the use case r
 | Use a different cache backend | `CacheProvider` | `CaffeineProvider` (or `NoOpCacheProvider`) |
 | Replace the logging/caching filter | `LoggingAndCachingWebFilter` | itself |
 | Replace the security chain | `SecurityWebFilterChain` | toolkit's chain in `SecurityAutoConfiguration` |
+| Replace the claims-to-headers filter | `JwtClaimsToHeadersWebFilter` | itself |
 | Override the Conman reactive handler | `ConmanHandler` | itself |
 | Override the Swagger UI OpenAPI bean | `OpenAPI` | toolkit's OAuth2-aware OpenAPI bean |
 | Add fields to every OpenAPI operation | Additional `OperationCustomizer` | (additive — no replacement) |

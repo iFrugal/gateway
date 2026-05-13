@@ -149,6 +149,88 @@ gateway:
 | `max-age` | long | `3600` | Preflight cache duration (seconds) |
 | `allow-credentials` | boolean | `true` | Allow credentials in requests |
 
+## JWT claims → outbound headers
+
+Once the JWT is validated, the toolkit can propagate selected claims to downstream services as plain headers — so each upstream microservice doesn't have to re-parse the token itself. Configure via `gateway.security.oauth2.claim-headers`. The filter (`JwtClaimsToHeadersWebFilter`) runs immediately after Spring Security's authentication step.
+
+### Simple 1:1 mapping
+
+The common case — each claim copies verbatim to a header:
+
+```yaml
+gateway:
+  security:
+    oauth2:
+      claim-headers:
+        - header: x-user-id
+          claim: sub
+        - header: x-tenant-id
+          claim: tid
+        - header: x-role
+          claim: jobTitle
+        - header: x-user-name
+          claim: given_name
+```
+
+A claim that isn't present in the JWT skips the header. To inject a literal fallback instead:
+
+```yaml
+        - header: x-system-name
+          claim: system            # absent on user-login JWTs
+          default: nodeJs-backend   # used when claim missing
+```
+
+### Extract a substring from a claim (regex)
+
+For issuer-URL-style claims that encode multiple pieces of information, use a regex with a named capture group:
+
+```yaml
+        - header: x-tenant-id
+          claim: iss
+          extract: "https://(?<tenantName>[^.]+)\\.b2clogin\\.com/tfp/(?<tenantId>[^/]+)/"
+          named-group: tenantId
+
+        - header: x-tenant-name
+          claim: iss
+          extract: "https://(?<tenantName>[^.]+)\\.b2clogin\\.com/tfp/(?<tenantId>[^/]+)/"
+          named-group: tenantName
+```
+
+`extract` is a standard Java regex (`(?<name>...)` for named groups). If the regex doesn't match the claim value, the rule falls through to `default:` (if set) or skips the header.
+
+If `named-group` is omitted, the entire matched substring is written.
+
+### Fall back to a different claim
+
+When the same logical value can come from two claims depending on which auth flow issued the JWT, chain two rules and mark the fallback as `if-previous-blank`:
+
+```yaml
+        - header: x-tenant-id
+          claim: iss
+          extract: "https://(?<t>[^.]+)\\.b2clogin\\.com/"
+          named-group: t
+
+        - header: x-tenant-id
+          claim: tid                # standard Azure AD claim
+          if-previous-blank: true   # only fires if the regex above produced nothing
+          default: ""
+```
+
+### What's NOT supported in YAML
+
+The following intentionally stay out of the YAML surface and need a custom `WebFilter` if you want them:
+
+- **Conditional gating by flow** ("inject `x-role` only on user-login JWTs"). Use `if-previous-blank` for the simplest fallback shape; for richer logic, write a Spring `WebFilter` and register it instead of `JwtClaimsToHeadersWebFilter` (the bean is `@ConditionalOnMissingBean`).
+- **Dictionary lookups** (e.g. tenant-id → tenant-code mapping). Org-specific; not part of OAuth2 claim semantics. Implement as a separate filter or as a step inside your custom one.
+
+See [extension-points.md](extension-points.md) for the recipe.
+
+### Operational notes
+
+- **Regex compilation is eager.** Each `extract` pattern is compiled at application startup (via `SecurityProperties.OAuth2Config.compilePatterns()`). A malformed pattern fails the boot with `IllegalStateException("Invalid regex in gateway.security.oauth2.claim-headers entry for header '...'")`. The per-request hot path never compiles.
+- **The filter is a pass-through when no rules are configured** — the empty list short-circuits and adds zero per-request cost.
+- **Non-JWT requests are pass-throughs.** Anonymous requests, basic-auth requests, requests with the JWT validation already rejected — none of them get headers injected. The filter only fires when `ReactiveSecurityContextHolder` contains a `JwtAuthenticationToken`.
+
 ## Swagger UI Integration with OAuth2
 
 When OAuth2 is enabled, the Swagger UI is automatically configured with OAuth2 authentication:
