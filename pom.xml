@@ -100,6 +100,23 @@
              first release with ASM new enough for JDK 25. -->
         <jacoco.version>0.8.14</jacoco.version>
 
+        <!-- JaCoCo coverage gate.
+             Set conservatively (40% line + 35% branch) so the gate catches a
+             real regression but doesn't fail on the existing baseline. Raise
+             over time as the test suite grows. Override per-module via the
+             `<jacoco.skip>true</jacoco.skip>` property — gateway-app does this
+             because it contains no business logic worth gating. -->
+        <jacoco.coverage.line.minimum>0.40</jacoco.coverage.line.minimum>
+        <jacoco.coverage.branch.minimum>0.35</jacoco.coverage.branch.minimum>
+        <jacoco.skip>false</jacoco.skip>
+
+        <!-- CycloneDX SBOM. Generates target/${artifactId}-${version}-cyclonedx.json
+             + .xml during `package` and attaches them as deployed artifacts so
+             every Maven Central release ships a Software Bill of Materials.
+             1.6 is the latest schema version (OWASP, 2024). -->
+        <cyclonedx-maven-plugin.version>2.9.1</cyclonedx-maven-plugin.version>
+        <cyclonedx.schema.version>1.6</cyclonedx.schema.version>
+
         <!-- SonarCloud -->
         <sonar.organization>ifrugal</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
@@ -196,7 +213,17 @@
                 </configuration>
             </plugin>
 
-            <!-- JaCoCo Code Coverage -->
+            <!-- JaCoCo Code Coverage.
+                 Three executions:
+                   - prepare-agent  (binds to initialize): wires the JVM agent
+                     into the test classpath so coverage data is collected.
+                   - report        (binds to verify): writes target/site/jacoco/
+                     for SonarCloud + the CI artifact upload.
+                   - check         (binds to verify): fails the build if line
+                     coverage drops below ${jacoco.coverage.line.minimum} or
+                     branch coverage below ${jacoco.coverage.branch.minimum}.
+                     Override per-module by setting <jacoco.skip>true</jacoco.skip>
+                     in the child pom — gateway-app does this. -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
@@ -214,6 +241,34 @@
                         <goals>
                             <goal>report</goal>
                         </goals>
+                    </execution>
+                    <execution>
+                        <id>check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${jacoco.skip}</skip>
+                            <haltOnFailure>true</haltOnFailure>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.coverage.line.minimum}</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.coverage.branch.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -240,6 +295,47 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+
+            <!-- CycloneDX SBOM.
+                 Generates a Software Bill of Materials (CycloneDX schema 1.6)
+                 for each module's compile / runtime / provided dependency
+                 graph and attaches it as a Maven artifact with classifier
+                 `cyclonedx` and extensions .json + .xml. Once attached, the
+                 BOM is deployed alongside the jar — every Maven Central
+                 release ships an SBOM downstream consumers can feed into
+                 Dependency-Track / FOSSA / Snyk / GitHub dependency graph.
+
+                 Test-scope deps are excluded by default; we don't ship them.
+                 includeLicenseText=false keeps the BOM compact (license
+                 identifiers travel with each component, the full text does
+                 not). -->
+            <plugin>
+                <groupId>org.cyclonedx</groupId>
+                <artifactId>cyclonedx-maven-plugin</artifactId>
+                <version>${cyclonedx-maven-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>build-sbom</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>makeBom</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <schemaVersion>${cyclonedx.schema.version}</schemaVersion>
+                    <projectType>library</projectType>
+                    <outputFormat>all</outputFormat>
+                    <outputName>${project.artifactId}-${project.version}-cyclonedx</outputName>
+                    <includeBomSerialNumber>true</includeBomSerialNumber>
+                    <includeCompileScope>true</includeCompileScope>
+                    <includeProvidedScope>true</includeProvidedScope>
+                    <includeRuntimeScope>true</includeRuntimeScope>
+                    <includeSystemScope>false</includeSystemScope>
+                    <includeTestScope>false</includeTestScope>
+                    <includeLicenseText>false</includeLicenseText>
+                </configuration>
             </plugin>
         </plugins>
 
