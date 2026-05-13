@@ -1,4 +1,4 @@
-package com.github.ifrugal.gateway.core.filter;
+package com.github.ifrugal.gateway.autoconfigure;
 
 import com.github.ifrugal.gateway.core.config.SecurityProperties.ClaimHeaderRule;
 import lombok.extern.slf4j.Slf4j;
