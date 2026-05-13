@@ -1,7 +1,6 @@
 package com.github.ifrugal.gateway.autoconfigure;
 
 import com.github.ifrugal.gateway.core.config.SecurityProperties;
-import com.github.ifrugal.gateway.core.filter.JwtClaimsToHeadersWebFilter;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.security.*;
