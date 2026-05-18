@@ -77,7 +77,7 @@
              WebMVC starters and requires a code-level migration. Track the
              migration as its own focused PR — not as a Dependabot click. -->
         <spring-boot.version>3.5.10</spring-boot.version>
-        <spring-cloud.version>2025.0.0</spring-cloud.version>
+        <spring-cloud.version>2025.1.1</spring-cloud.version>
 
         <!-- Lombok — 1.18.30 (the version Spring Boot 3.5.x manages) predates
              JDK 22 and fails on JDK 25 with "TypeTag :: UNKNOWN". 1.18.46
