@@ -98,7 +98,7 @@
         <!-- JaCoCo — 0.8.12 bundles an ASM that cannot read Java 25 bytecode
              (major version 69) and fails report generation. 0.8.14 was the
              first release with ASM new enough for JDK 25. -->
-        <jacoco.version>0.8.14</jacoco.version>
+        <jacoco.version>0.8.15</jacoco.version>
 
         <!-- JaCoCo coverage gate.
              Set conservatively (40% line + 35% branch) so the gate catches a
