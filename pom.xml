@@ -114,7 +114,7 @@
              + .xml during `package` and attaches them as deployed artifacts so
              every Maven Central release ships a Software Bill of Materials.
              1.6 is the latest schema version (OWASP, 2024). -->
-        <cyclonedx-maven-plugin.version>2.9.1</cyclonedx-maven-plugin.version>
+        <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <cyclonedx.schema.version>1.6</cyclonedx.schema.version>
 
         <!-- SonarCloud -->
