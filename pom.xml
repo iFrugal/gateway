@@ -117,13 +117,24 @@
         <cyclonedx-maven-plugin.version>2.9.3</cyclonedx-maven-plugin.version>
         <cyclonedx.schema.version>1.6</cyclonedx.schema.version>
 
-        <!-- SonarCloud -->
+        <!-- SonarCloud.
+             The scanner plugin version is pinned here (and declared in
+             pluginManagement below) so CI can invoke it by coordinates
+             without repeating the version: `sonar:sonar` alone cannot be
+             resolved, because Maven only searches the default plugin groups
+             (org.apache.maven.plugins, org.codehaus.mojo) for goal prefixes
+             and sonar-maven-plugin lives in org.sonarsource.scanner.maven. -->
+        <sonar-maven-plugin.version>5.7.0.6970</sonar-maven-plugin.version>
         <sonar.organization>ifrugal</sonar.organization>
         <sonar.host.url>https://sonarcloud.io</sonar.host.url>
         <sonar.projectKey>iFrugal_gateway</sonar.projectKey>
         <sonar.java.coveragePlugin>jacoco</sonar.java.coveragePlugin>
+        <!-- Resolved per module (`${project.basedir}` is the module directory,
+             not the reactor root), so every module reports its own JaCoCo XML.
+             Modules with `jacoco.skip=true` simply have no report and are
+             skipped with a scanner warning. -->
         <sonar.coverage.jacoco.xmlReportPaths>
-            ${project.basedir}/gateway-core/target/site/jacoco/jacoco.xml
+            ${project.basedir}/target/site/jacoco/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
@@ -345,6 +356,15 @@
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
                     <version>${spring-boot.version}</version>
+                </plugin>
+                <!-- Not bound to any lifecycle phase; declared so that the
+                     CI-only `sonar-maven-plugin:sonar` invocation resolves to
+                     a pinned version instead of whatever is latest, and so
+                     Dependabot can see and bump it. -->
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>${sonar-maven-plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
