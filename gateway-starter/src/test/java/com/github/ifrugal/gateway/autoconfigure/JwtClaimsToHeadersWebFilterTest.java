@@ -48,7 +48,7 @@ class JwtClaimsToHeadersWebFilterTest {
             StepVerifier.create(filter.filter(exchange, chain).contextWrite(jwtContext(Map.of("sub", "alice"))))
                     .verifyComplete();
 
-            assertThat(downstream.get()).doesNotContainKey("x-user-id");
+            assertThat(downstream.get().containsHeader("x-user-id")).isFalse();
         }
 
         @Test
@@ -65,7 +65,7 @@ class JwtClaimsToHeadersWebFilterTest {
 
             // No security context at all
             StepVerifier.create(filter.filter(exchange, chain)).verifyComplete();
-            assertThat(downstream.get()).doesNotContainKey("x-user-id");
+            assertThat(downstream.get().containsHeader("x-user-id")).isFalse();
         }
 
         @Test
@@ -84,7 +84,7 @@ class JwtClaimsToHeadersWebFilterTest {
             StepVerifier.create(filter.filter(exchange, chain)
                             .contextWrite(ReactiveSecurityContextHolder.withSecurityContext(Mono.just(ctx))))
                     .verifyComplete();
-            assertThat(downstream.get()).doesNotContainKey("x-user-id");
+            assertThat(downstream.get().containsHeader("x-user-id")).isFalse();
         }
     }
 
@@ -124,7 +124,7 @@ class JwtClaimsToHeadersWebFilterTest {
             runFilter(filter, downstream, Map.of("sub", "alice")); // no jobTitle
 
             assertThat(downstream.get().getFirst("x-user-id")).isEqualTo("alice");
-            assertThat(downstream.get()).doesNotContainKey("x-role");
+            assertThat(downstream.get().containsHeader("x-role")).isFalse();
         }
 
         @Test
@@ -205,7 +205,7 @@ class JwtClaimsToHeadersWebFilterTest {
 
             runFilter(filter, downstream, Map.of("iss", "https://idp.example.com/realms/x"));
 
-            assertThat(downstream.get()).doesNotContainKey("x-tenant-id");
+            assertThat(downstream.get().containsHeader("x-tenant-id")).isFalse();
         }
 
         @Test
