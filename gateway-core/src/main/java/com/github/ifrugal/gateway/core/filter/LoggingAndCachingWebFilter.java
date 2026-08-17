@@ -322,7 +322,7 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
 
         response.setStatusCode(HttpStatus.OK);
 
-        if (!response.getHeaders().containsKey("Content-Type")) {
+        if (!response.getHeaders().containsHeader("Content-Type")) {
             response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
         }
 

@@ -71,13 +71,12 @@
         <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
 
         <!-- Spring versions.
-             Pinned to the 3.5.x / 2025.0.x line. Spring Boot 4 + Spring Cloud
-             2025.1 form a coordinated major upgrade that, on the Gateway side,
-             renames spring-cloud-starter-gateway into separate WebFlux and
-             WebMVC starters and requires a code-level migration. Track the
-             migration as its own focused PR — not as a Dependabot click. -->
-        <spring-boot.version>3.5.16</spring-boot.version>
-        <spring-cloud.version>2025.0.3</spring-cloud.version>
+             Boot 4.x / Cloud 2025.1.x line. The Gateway starter is the
+             WebFlux flavour (spring-cloud-starter-gateway-server-webflux)
+             since the 2025.1 train split the old starter into WebFlux and
+             WebMVC variants. -->
+        <spring-boot.version>4.1.0</spring-boot.version>
+        <spring-cloud.version>2025.1.2</spring-cloud.version>
 
         <!-- Lombok — 1.18.30 (the version Spring Boot 3.5.x manages) predates
              JDK 22 and fails on JDK 25 with "TypeTag :: UNKNOWN". 1.18.46
@@ -85,13 +84,14 @@
         <lombok.version>1.18.46</lombok.version>
 
         <!-- Library versions.
-             springdoc 2.x is the line that targets Spring Boot 3.x; the 3.x
-             line targets Spring Boot 4 / Spring Framework 7. Bump when we
-             actually move to Spring Boot 4.
-             json-schema-validator 1.5.x is the line tested against the
-             RequestValidator call sites in this project. 2.x and 3.x change
-             the JsonSchema / JsonSchemaFactory / SpecVersionDetector API. -->
-        <springdoc-openapi.version>2.9.0</springdoc-openapi.version>
+             springdoc 3.x is the line that targets Spring Boot 4 /
+             Spring Framework 7.
+             json-schema-validator stays on 1.5.x: the 3.x line is rebuilt
+             on Jackson 3 (tools.jackson JsonNode) and renames the whole
+             API (JsonSchema/JsonSchemaFactory become Schema/SchemaRegistry),
+             so it moves together with a Jackson 3 migration of the
+             lazydevs SerDe call sites, not as a version bump. -->
+        <springdoc-openapi.version>3.1.0</springdoc-openapi.version>
         <lazydevs.version>1.0.46</lazydevs.version>
         <json-schema-validator.version>1.5.9</json-schema-validator.version>
 
