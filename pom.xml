@@ -86,14 +86,15 @@
         <!-- Library versions.
              springdoc 3.x is the line that targets Spring Boot 4 /
              Spring Framework 7.
-             json-schema-validator stays on 1.5.x: the 3.x line is rebuilt
-             on Jackson 3 (tools.jackson JsonNode) and renames the whole
-             API (JsonSchema/JsonSchemaFactory become Schema/SchemaRegistry),
-             so it moves together with a Jackson 3 migration of the
-             lazydevs SerDe call sites, not as a version bump. -->
+             json-schema-validator 3.x is rebuilt on Jackson 3
+             (tools.jackson) and renames the API (JsonSchema/JsonSchemaFactory
+             become Schema/SchemaRegistry). Our call sites bridge at the
+             string boundary — SchemaRegistry.getSchema(String) and
+             Schema.validate(String, InputFormat.JSON) — so the lazydevs
+             SerDe (Jackson 2) trees never cross into the validator. -->
         <springdoc-openapi.version>3.1.0</springdoc-openapi.version>
         <lazydevs.version>1.0.46</lazydevs.version>
-        <json-schema-validator.version>1.5.9</json-schema-validator.version>
+        <json-schema-validator.version>3.0.6</json-schema-validator.version>
 
         <!-- JaCoCo — 0.8.12 bundles an ASM that cannot read Java 25 bytecode
              (major version 69) and fails report generation. 0.8.14 was the

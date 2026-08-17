@@ -155,10 +155,10 @@ class MockConfigTest {
     @DisplayName("precompileBodySchemaIfPresent should compile inline schema and set bodySchemaInternal")
     void precompileCompilesInlineSchema() {
         MockConfig.RequestValidation v = new MockConfig.RequestValidation();
-        // networknt's SpecVersionDetector reads the $schema declaration to
-        // pick the JSON Schema spec version; without it, compilation throws
-        // with "'$schema' tag is not present". Mock authors are expected to
-        // include $schema; this test reflects that real-world contract.
+        // networknt 3.x reads the $schema declaration to pick the dialect and
+        // falls back to 2020-12 when absent (the 1.x SpecVersionDetector used
+        // to throw instead). Mock authors are still expected to declare
+        // $schema; this test reflects that real-world contract.
         v.setBodySchema(
                 "{" +
                 "  \"$schema\":\"https://json-schema.org/draft/2020-12/schema\"," +
@@ -184,7 +184,7 @@ class MockConfigTest {
                 "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}");
 
         v.precompileBodySchemaIfPresent();
-        com.networknt.schema.JsonSchema firstCompiled = v.getBodySchemaInternal();
+        com.networknt.schema.Schema firstCompiled = v.getBodySchemaInternal();
         assertThat(firstCompiled).isNotNull();
 
         // Calling again must NOT replace the cached instance.
