@@ -82,16 +82,22 @@ public class JwtClaimsToHeadersWebFilter implements WebFilter, Ordered {
         if (rules.isEmpty()) {
             return chain.filter(exchange);
         }
+        // applyRules must NOT invoke the chain inside flatMap: chain.filter
+        // returns Mono<Void>, which completes empty, so a trailing
+        // switchIfEmpty would fire as well and run the chain a second time
+        // with the unmutated exchange. Resolve the (possibly mutated)
+        // exchange first, then invoke the chain exactly once.
         return ReactiveSecurityContextHolder.getContext()
                 .map(SecurityContext::getAuthentication)
                 .filter(JwtAuthenticationToken.class::isInstance)
                 .cast(JwtAuthenticationToken.class)
                 .map(JwtAuthenticationToken::getToken)
-                .flatMap(jwt -> applyRules(exchange, chain, jwt))
-                .switchIfEmpty(Mono.defer(() -> chain.filter(exchange)));
+                .map(jwt -> applyRules(exchange, jwt))
+                .defaultIfEmpty(exchange)
+                .flatMap(chain::filter);
     }
 
-    private Mono<Void> applyRules(ServerWebExchange exchange, WebFilterChain chain, Jwt jwt) {
+    private ServerWebExchange applyRules(ServerWebExchange exchange, Jwt jwt) {
         Map<String, Object> claims = jwt.getClaims();
         // Track per-header winning value so `if-previous-blank` rules can
         // detect that an earlier rule already produced a value.
@@ -108,13 +114,12 @@ public class JwtClaimsToHeadersWebFilter implements WebFilter, Ordered {
         }
 
         if (resolved.isEmpty()) {
-            return chain.filter(exchange);
+            return exchange;
         }
 
         ServerHttpRequest.Builder builder = exchange.getRequest().mutate();
         resolved.forEach(builder::header);
-        ServerWebExchange mutated = exchange.mutate().request(builder.build()).build();
-        return chain.filter(mutated);
+        return exchange.mutate().request(builder.build()).build();
     }
 
     /**
