@@ -1,10 +1,9 @@
 package com.github.ifrugal.gateway.core.conman;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersionDetector;
+import com.networknt.schema.Schema;
+import com.networknt.schema.SchemaRegistry;
+import com.networknt.schema.SpecificationVersion;
 import lazydevs.mapper.utils.SerDe;
 import lazydevs.mapper.utils.engine.TemplateEngine;
 import lazydevs.mapper.utils.file.FileUtils;
@@ -76,9 +75,18 @@ public class MockConfig {
         private String bodySchema;
         private String bodySchemaFile;
 
+        /**
+         * Shared schema compiler. A schema's {@code $schema} declaration is
+         * honoured when present; 2020-12 is assumed when absent (the 1.x
+         * SpecVersionDetector used to fail loud instead — mock authors should
+         * still declare {@code $schema}).
+         */
+        private static final SchemaRegistry SCHEMA_REGISTRY =
+                SchemaRegistry.withDefaultDialect(SpecificationVersion.DRAFT_2020_12);
+
         @JsonIgnore
         @Getter
-        private JsonSchema bodySchemaInternal;
+        private Schema bodySchemaInternal;
 
         @Getter
         private Map<String, Param> headers;
@@ -111,7 +119,7 @@ public class MockConfig {
          * load. Prior to this, the first two concurrent requests for the
          * same mock could each compile the same schema and race on the
          * {@code setBodySchemaInternal} assignment — harmless (last-write-
-         * wins, both writes produce equivalent {@link JsonSchema} instances)
+         * wins, both writes produce equivalent {@link Schema} instances)
          * but wasteful and not provably correct under all schedulings.
          *
          * <p>Compilation failures (malformed schema JSON, unrecognised
@@ -128,10 +136,9 @@ public class MockConfig {
                 return;
             }
             try {
-                JsonNode schemaJsonNode = SerDe.JSON.getOBJECT_MAPPER().readTree(schemaText);
-                this.bodySchemaInternal = JsonSchemaFactory
-                        .getInstance(SpecVersionDetector.detect(schemaJsonNode))
-                        .getSchema(schemaJsonNode);
+                // The registry parses the schema text itself (Jackson 3
+                // internally); no Jackson 2 tree crosses the boundary.
+                this.bodySchemaInternal = SCHEMA_REGISTRY.getSchema(schemaText);
             } catch (Exception e) {
                 throw new RuntimeException(
                         "Failed to compile JSON schema for mock validation: " + e.getMessage(), e);

@@ -2,9 +2,8 @@ package com.github.ifrugal.gateway.core.conman.validation;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.networknt.schema.JsonSchema;
-import com.networknt.schema.JsonSchemaFactory;
-import com.networknt.schema.SpecVersionDetector;
+import com.networknt.schema.InputFormat;
+import com.networknt.schema.Schema;
 import com.github.ifrugal.gateway.core.conman.ConmanCache;
 import com.github.ifrugal.gateway.core.conman.MockConfig;
 import lazydevs.mapper.utils.SerDe;
@@ -112,13 +111,12 @@ public class RequestValidator {
 
         logger.debug("Body validation is required, body schema is present");
 
-        // Prepare schema if not already done
+        // Prepare schema if not already done. Compilation is owned by
+        // MockConfig.RequestValidation so the registry, dialect defaulting and
+        // fail-loud error wrapping live in exactly one place.
         if (requestValidation.getBodySchemaInternal() == null) {
             logger.debug("Preparing JSON schema for validation");
-            JsonNode schemaJsonNode = convert(requestValidation.getBodySchema());
-            JsonSchema schema = JsonSchemaFactory.getInstance(SpecVersionDetector.detect(schemaJsonNode))
-                    .getSchema(schemaJsonNode);
-            requestValidation.setBodySchemaInternal(schema);
+            requestValidation.precompileBodySchemaIfPresent();
         }
 
         // Check Content-Length
@@ -161,7 +159,7 @@ public class RequestValidator {
                         exchange.getAttributes().put(REQUEST_BODY_ATTR, bodyString);
 
                         // Perform validation against schema
-                        validateAgainstSchema(jsonNode, requestValidation.getBodySchemaInternal());
+                        validateAgainstSchema(bodyString, requestValidation.getBodySchemaInternal());
 
                         logger.debug("Body validation completed successfully");
 
@@ -191,27 +189,20 @@ public class RequestValidator {
                 trimmed.equals("[]");
     }
 
-    private static JsonNode convert(Object obj) {
-        try {
-            if (obj == null) return null;
-            if (obj instanceof String) {
-                return SerDe.JSON.getOBJECT_MAPPER().readTree((String) obj);
-            }
-            if (obj instanceof JsonNode) {
-                return (JsonNode) obj;
-            }
-            return SerDe.JSON.getOBJECT_MAPPER().valueToTree(obj);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to convert object to JsonNode: " + obj, e);
-        }
-    }
-
-    private static void validateAgainstSchema(JsonNode jsonNode, JsonSchema schema) {
-        if (jsonNode == null || jsonNode.isNull()) {
+    /**
+     * Validate the raw request body against the compiled schema. Takes the
+     * body as a STRING on purpose: json-schema-validator 3.x parses with
+     * Jackson 3 internally, and handing it text keeps the Jackson 2 trees
+     * from the lazydevs SerDe out of the validator entirely. The caller has
+     * already parsed the body once (Jackson 2) to reject malformed/null JSON
+     * with consistent error messages.
+     */
+    private static void validateAgainstSchema(String bodyJson, Schema schema) {
+        if (bodyJson == null || bodyJson.isBlank()) {
             throw new RuntimeException("Cannot validate null JSON against schema");
         }
 
-        var validationResult = schema.validate(jsonNode);
+        var validationResult = schema.validate(bodyJson, InputFormat.JSON);
         if (!validationResult.isEmpty()) {
             StringBuilder errorMessages = new StringBuilder("JSON Schema validation failed:");
             validationResult.forEach(error ->
