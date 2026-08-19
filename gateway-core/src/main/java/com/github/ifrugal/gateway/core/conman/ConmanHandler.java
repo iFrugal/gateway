@@ -76,9 +76,13 @@ public class ConmanHandler {
             return notFound(httpMethod, uri, tenantId);
         }
 
-        // Use reactive chain for validation
+        // Use reactive chain for validation. serviceInternal MUST be deferred:
+        // called eagerly it renders the response template while the chain is
+        // being ASSEMBLED, before validate() has read the body and stored the
+        // REQUEST_BODY attribute — so ${request.body...} in a template was
+        // always "null or missing" and the request 500ed instead of echoing.
         return RequestValidator.validate(req.exchange(), data, httpMethod, uri, tenantId)
-                .then(serviceInternal(httpMethod, uri, tenantId, req, data))
+                .then(Mono.defer(() -> serviceInternal(httpMethod, uri, tenantId, req, data)))
                 .onErrorResume(throwable -> {
                     log.error("Validation failed for request: {} {}", httpMethod, uri, throwable);
                     return validationException(throwable);

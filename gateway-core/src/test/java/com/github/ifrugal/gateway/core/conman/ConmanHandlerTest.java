@@ -195,6 +195,52 @@ class ConmanHandlerTest {
                 .verifyComplete();
     }
 
+    @Test
+    @DisplayName("templated body should echo request-body fields end to end")
+    void templatedBodyEchoesRequestBody() {
+        // Regression: serviceInternal used to be invoked eagerly while the
+        // reactive chain was assembled, rendering the template BEFORE
+        // validation had read the body — so ${request.body...} was always
+        // missing and the request 500ed. The Mono.defer in service() is what
+        // this test pins down.
+        MockConfig mockConfig = createMockConfig(HttpMethod.POST, "/mock/echo", 201,
+                "{\"greeting\": \"hello ${request.body.name}\"}", null);
+        mockConfig.getResponse().setBodyTemplate(true);
+        MockConfig.RequestValidation validation = new MockConfig.RequestValidation();
+        validation.setBodySchema(
+                "{\"$schema\":\"https://json-schema.org/draft/2020-12/schema\",\"type\":\"object\"}");
+        mockConfig.getRequest().setValidation(validation);
+
+        String body = "{\"name\":\"Alice\"}";
+        MockServerHttpRequest httpRequest = MockServerHttpRequest
+                .method(HttpMethod.POST, "/mock/echo")
+                .header("Content-Type", "application/json")
+                .header("Content-Length", String.valueOf(body.length()))
+                .body(body);
+        MockServerWebExchange exchange = MockServerWebExchange.from(httpRequest);
+
+        ServerRequest request = mock(ServerRequest.class);
+        when(request.exchange()).thenReturn(exchange);
+        when(request.uri()).thenReturn(URI.create("/mock/echo"));
+        when(request.method()).thenReturn(HttpMethod.POST);
+        when(request.queryParams()).thenReturn(new org.springframework.util.LinkedMultiValueMap<>());
+        ServerRequest.Headers headers = mock(ServerRequest.Headers.class);
+        when(headers.firstHeader(org.mockito.ArgumentMatchers.anyString())).thenReturn(null);
+        when(headers.asHttpHeaders()).thenReturn(new org.springframework.http.HttpHeaders());
+        when(request.headers()).thenReturn(headers);
+
+        when(conmanCache.getMockConfig(HttpMethod.POST, "/mock/echo", null)).thenReturn(mockConfig);
+
+        StepVerifier.create(servlet.service(request))
+                .assertNext(response -> {
+                    assertThat(response.statusCode().value()).isEqualTo(201);
+                    Object entity = ((org.springframework.web.reactive.function.server.EntityResponse<?>) response).entity();
+                    String rendered = new String((byte[]) entity);
+                    assertThat(rendered).contains("hello Alice");
+                })
+                .verifyComplete();
+    }
+
     // --- Helper methods ---
 
     private ServerRequest mockServerRequest(HttpMethod method, String path, String tenantId) {
