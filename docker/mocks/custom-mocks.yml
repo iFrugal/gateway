@@ -4,11 +4,13 @@
 # Mount this file as /app/mocks/custom-mocks.yml in Docker
 # =============================================================================
 
-# Simple GET endpoint
+# Simple GET endpoint. bodyTemplate: true is what makes ${...} substitute;
+# without it the placeholder is returned as literal text.
 - request:
     uri: /mock/hello
     httpMethod: GET
   response:
+    bodyTemplate: true
     body: |
       {
         "message": "Hello from Spring Gateway Toolkit!",
@@ -17,15 +19,21 @@
     contentType: application/json
     statusCode: 200
 
-# POST endpoint with body template
+# POST endpoint with body template.
+# bodySchema is required for ${request.body...} to exist in the template
+# context, and the whole body cannot be echoed as one expression (it is a
+# map); the <#list> copies scalar fields.
 - request:
     uri: /mock/echo
     httpMethod: POST
+    validation:
+      bodySchema: |
+        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"}
   response:
     bodyTemplate: true
     body: |
       {
-        "echo": ${request.body},
+        "echo": {<#list request.body?keys?filter(k -> request.body[k]?is_string || request.body[k]?is_number) as k>"${k}": "${request.body[k]}"<#sep>, </#list>},
         "method": "${request.httpMethod}",
         "uri": "${request.requestUri}"
       }
@@ -43,9 +51,10 @@
       }
     contentType: application/json
     statusCode: 200
+    # responseHeaders are literal — they do NOT pass through the template
+    # engine, so a ${uuid1} here would be returned as literal text.
     responseHeaders:
       X-Custom-Header: "custom-value"
-      X-Request-Id: "${uuid1}"
 
 # Endpoint with validation
 - request:
