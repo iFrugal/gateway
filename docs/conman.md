@@ -2,6 +2,8 @@
 
 Conman is a YAML-driven mock-API framework built into Spring Gateway Toolkit. It lets you stand up stubbed endpoints inside the same Gateway instance — useful for integration tests, contract development, and replacing flaky downstreams during development. Configuration is loaded from YAML files at startup and can be added/replaced at runtime via a REST admin API.
 
+> **Developer cookbook:** for a capability-by-capability walkthrough with verified examples (static mocks, templating, input-driven responses, validation, tenancy, runtime registration, gotchas), see [conman-mocking-guide.md](conman-mocking-guide.md). This page is the configuration reference.
+
 > **History note:** this class was named `ConmanServlet` prior to `1.1.0`. The name was historical and misleading — Spring Cloud Gateway is reactive, and this class has nothing to do with `jakarta.servlet.Servlet`. It is a `RouterFunction`-registered reactive handler returning `Mono<ServerResponse>`. Anyone holding a `1.0.x` binary reference to `ConmanServlet` needs to update imports.
 
 ## Configuration properties
@@ -47,24 +49,23 @@ A mapping file is a **top-level YAML list** of mock entries. There is no wrapper
 # conman.yml — top-level list, no "mocks:" wrapper
 
 - request:
-    uri: /mock/users/{id}
+    uri: /mock/users          # exact path match — no path variables, no wildcards
     httpMethod: GET
     validation:
       headers:
-        Authorization:
+        authorization:
           required: true
       queryParams:
         id:
           required: true
   response:
     statusCode: 200
-    contentType: application/json
     bodyTemplate: true
     body: |
       {
-        "id": "${params.id}",
+        "id": "${request.params.id[0]}",
         "name": "John Doe",
-        "tenant": "${headers['tenant-id']}"
+        "tenant": "${request.headers['tenant-id']}"
       }
     responseHeaders:
       Cache-Control: "max-age=300"
@@ -101,14 +102,14 @@ A mapping file is a **top-level YAML list** of mock entries. There is no wrapper
 |---|---|---|
 | `tenantId` | `String` | Single tenant this mock applies to. Use `null` (omit the field) for the default/no-tenant mock. |
 | `tenantIds` | `Set<String>` | Multiple tenants for the same mock. Use this **or** `tenantId`, not both. |
-| `request.uri` | `String` | Path the mock matches. Path variables in `{braces}` are exposed to templates as `${params.id}`. |
+| `request.uri` | `String` | Path the mock matches, **character for character**. There are no path variables and no wildcards: `/mock/users/{id}` matches only that literal string, never `/mock/users/42`. The query string is not part of the match. |
 | `request.httpMethod` | `HttpMethod` | `GET`, `POST`, `PUT`, `DELETE`, etc. |
-| `request.validation.headers` | `Map<String, Param>` | Each entry is `{ required: true|false, pattern: <regex> }`. Header names are case-sensitive in the validation map but matched case-insensitively at runtime. |
-| `request.validation.queryParams` | `Map<String, Param>` | Same shape as `headers`. |
+| `request.validation.headers` | `Map<String, Param>` | Each entry supports `required: true|false`, `regexValidator: <regex>`, and `typeFqcn: <java type>`. Use lowercase header names — the runtime lowercases incoming header names before validation. |
+| `request.validation.queryParams` | `Map<String, Param>` | Same shape as `headers`; keys keep their original case. |
 | `request.validation.bodySchema` | `String` (JSON Schema) | Inline JSON Schema string. JSON Schema Draft 4+ supported via `networknt/json-schema-validator`. |
 | `request.validation.bodySchemaFile` | `String` | Path to a JSON Schema file; used if `bodySchema` is empty. |
 | `response.statusCode` | `int` | HTTP status returned. |
-| `response.contentType` | `String` | `Content-Type` header value. |
+| `response.contentType` | `String` | **Currently ignored** — the handler always responds `application/json`. The field exists on the model but is not applied. |
 | `response.body` | `String` | Response body as a string. Often a JSON literal. |
 | `response.bodyObj` | `Map<String, Object>` | Response body as an object; serialized to JSON. Use either this or `body`, not both. |
 | `response.bodyTemplate` | `boolean` | When `true`, runs `body` (or the JSON-serialized `bodyObj`) through the template engine before returning. |
@@ -118,20 +119,23 @@ A mapping file is a **top-level YAML list** of mock entries. There is no wrapper
 
 ## Response templates
 
-When `response.bodyTemplate: true`, the response body is processed through a template engine before being returned. The substitution context is built from the incoming request:
+When `response.bodyTemplate: true`, the response body is processed through a FreeMarker-based template engine before being returned. The substitution context is built from the incoming request and is rooted at `request`:
 
 | Token | Source |
 |---|---|
-| `${params.NAME}` | Path variable or query parameter named `NAME` |
-| `${headers['Name']}` | Request header named `Name` (case-sensitive lookup) |
-| `${body.field}` | JSON body field (dot notation for nested: `${body.user.name}`) |
+| `${request.params.NAME[0]}` | Query parameter named `NAME`. Values are **lists**; the index is mandatory. (There are no path variables — matching is exact.) |
+| `${request.headers['name']}` | Request header (single-valued map; bracket syntax for dashed names) |
+| `${request.body.field}` | JSON body field, dot notation for nesting. **Available only when the mock declares `validation.bodySchema`** — body capture happens during validation. `${request.body}` as a whole is a template error. |
+| `${request.requestUri}` / `${request.httpMethod}` | Request path and method |
 | `${uuid1}` | A fresh `UUID.randomUUID()` injected per request |
-| `${.now?string('yyyy-MM-dd HH:mm:ss')}` | Current timestamp (FreeMarker-style format string) |
+| `${.now?string('yyyy-MM-dd HH:mm:ss')}` | Current timestamp (FreeMarker format string) |
+
+Full FreeMarker directives (`<#if>`, `<#list>`) and builtins (`?upper_case`, `?json_string`, `?c`, ...) work. Missing values are template **errors** — guard optional inputs with the parenthesized default operator `${(request.params.page[0])!'1'}`. A template error fails the response.
 
 Example:
 
 ```
-GET /mock/users/123?role=admin
+GET /mock/users?id=123&role=admin
 tenant-id: tenant-1
 ```
 
@@ -139,9 +143,9 @@ with template:
 
 ```json
 {
-  "userId": "${params.id}",
-  "role": "${params.role}",
-  "tenant": "${headers['tenant-id']}"
+  "userId": "${request.params.id[0]}",
+  "role": "${request.params.role[0]}",
+  "tenant": "${request.headers['tenant-id']}"
 }
 ```
 
@@ -154,6 +158,8 @@ returns:
   "tenant": "tenant-1"
 }
 ```
+
+See [conman-mocking-guide.md](conman-mocking-guide.md) for input-driven responses, conditionals, list rendering, and the gotchas checklist.
 
 ## Multi-tenancy
 

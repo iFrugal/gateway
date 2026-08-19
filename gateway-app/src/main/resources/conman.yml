@@ -15,15 +15,24 @@
     contentType: application/json
     statusCode: 200
 
-# Echo endpoint
+# Echo endpoint.
+# - bodySchema is required for ${request.body...} to exist in the template
+#   context (body capture happens during validation).
+# - The whole body cannot be echoed as one expression (${request.body} is a
+#   map and fails to render); the <#list> below copies scalar fields.
 - request:
     uri: /mock/echo
     httpMethod: POST
+    validation:
+      bodySchema: |
+        {"$schema": "https://json-schema.org/draft/2020-12/schema", "type": "object"}
   response:
     bodyTemplate: true
     body: |
       {
-        "received": ${request.body},
+        "received": {<#list request.body?keys?filter(k -> request.body[k]?is_string || request.body[k]?is_number) as k>"${k}": "${request.body[k]}"<#sep>, </#list>},
+        "method": "${request.httpMethod}",
+        "uri": "${request.requestUri}",
         "timestamp": "${.now?string('yyyy-MM-dd HH:mm:ss')}"
       }
     contentType: application/json
