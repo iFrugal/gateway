@@ -165,6 +165,18 @@ Causes, in order:
 1. `gateway.cors.allowed-origins` is empty or doesn't include your front-end's origin (don't use `*` with credentials — browsers ignore `*` when `allow-credentials: true`).
 2. Your front-end is sending a non-standard method that isn't in `allowed-methods`.
 3. A reverse proxy in front of the gateway is stripping the CORS preflight `OPTIONS`.
+4. Your own `SecurityWebFilterChain` answers the `OPTIONS` with a 401 (toolkit `1.0.x` only — since `1.1.0` the CORS filter answers a preflight before Spring Security runs).
+
+### Browser reports a CORS error, the gateway log says 401 or 403
+
+Symptoms: the front end's console shows `No 'Access-Control-Allow-Origin' header is present` (or a bare `TypeError: Failed to fetch`) on a request that the gateway's own log shows answering `401` or `403`. The app never gets to handle the 401, so an expired token looks like an outage.
+
+Cause: a response Spring Security writes itself is committed before any `WebFilter` that runs *behind* `WebFilterChainProxy` (order `-100`) gets a look at it. The toolkit's own filter runs at `-200` since `1.1.0`, so out of the box this cannot happen. If you still see it:
+
+1. You are on toolkit `1.0.x`, where `gatewayCorsFilter` was unordered and ran last. Upgrade.
+2. You replaced `gatewayCorsFilter` with your own bean and it does not implement `Ordered`, or its order is above `-100`. Extend `OrderedCorsWebFilter`, or return an order below `-100`.
+3. Your own `SecurityWebFilterChain` calls `.cors(CorsSpec::disable)`. Drop that; the chain then picks up the `CorsConfigurationSource` bean on its own.
+4. Something declares a second reactive `CorsConfigurationSource` bean. Spring Security only uses the bean when exactly one exists — remove the extra one, or pass yours explicitly with `.cors(cors -> cors.configurationSource(...))`.
 
 ## Conman (mock framework)
 

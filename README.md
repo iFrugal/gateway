@@ -42,7 +42,7 @@ YAML-based mock endpoint configuration with multi-tenant support, request valida
 OAuth2 Resource Server (JWT validation) and OAuth2 Login flow with configurable guest/public paths, protected admin endpoints, and seamless Swagger UI integration.
 
 ### 5. CORS Configuration
-Fully configurable via YAML — allowed origins, methods, headers, and credentials.
+Fully configurable via YAML — allowed origins, methods, headers, and credentials. Applied ahead of Spring Security, so a 401 or 403 still reaches the browser with its CORS headers.
 
 ### 6. Service Discovery (Optional)
 No vendor lock-in — works without service discovery. Profile-based activation for Consul, Eureka, or static routes.

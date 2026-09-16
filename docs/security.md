@@ -149,6 +149,19 @@ gateway:
 | `max-age` | long | `3600` | Preflight cache duration (seconds) |
 | `allow-credentials` | boolean | `true` | Allow credentials in requests |
 
+### CORS and Spring Security
+
+Two things make sure a browser can read a response that Spring Security wrote itself — a 401 for a missing or expired token, a 403 from an authorisation rule — instead of seeing an opaque CORS error:
+
+1. **The bundled filter runs ahead of Spring Security.** `gatewayCorsFilter` is an `OrderedCorsWebFilter` at order `-200`; Spring Security's `WebFilterChainProxy` sits at `-100`. `CorsWebFilter` writes the CORS response headers *before* delegating, so they are already on the response when the security chain commits a 401, and it answers a preflight without delegating at all, so `OPTIONS` never reaches authentication.
+2. **The policy is a `CorsConfigurationSource` bean.** `gatewayCorsConfigurationSource` exposes the `gateway.cors.*` policy as a reactive `CorsConfigurationSource`. Spring Security's WebFlux DSL looks up a single bean of that type on its own, so *every* `SecurityWebFilterChain` in the application applies the same policy to the responses it writes — the toolkit's chain (which calls `cors(withDefaults())` explicitly) and any chain you declare in its place. Only `.cors(CorsSpec::disable)` opts a chain out.
+
+The two never duplicate a header: Spring's `DefaultCorsProcessor` skips a response that already carries `Access-Control-Allow-Origin`.
+
+To change the policy, declare your own `CorsConfigurationSource` bean — the toolkit's steps aside (`@ConditionalOnMissingBean(CorsConfigurationSource.class)`) and both the bundled filter and the security chain use yours. To replace the filter itself, declare a `WebFilter` bean named `gatewayCorsFilter` and keep it `Ordered` below `-100` (extending `OrderedCorsWebFilter` is the easy way), or the 401 problem comes back. See [extension-points.md](extension-points.md#replace-the-cors-policy-or-filter).
+
+> Toolkit `1.0.x` shipped the filter unordered, so it ran *behind* Spring Security and 401/403 responses carried no CORS headers at all. Fixed in `1.1.0`.
+
 ## JWT claims → outbound headers
 
 Once the JWT is validated, the toolkit can propagate selected claims to downstream services as plain headers — so each upstream microservice doesn't have to re-parse the token itself. Configure via `gateway.security.oauth2.claim-headers`. The filter (`JwtClaimsToHeadersWebFilter`) runs immediately after Spring Security's authentication step.

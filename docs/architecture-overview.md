@@ -60,6 +60,8 @@ Netty inbound  ──►  Spring Cloud Gateway route predicate match
 
 `LoggingAndCachingWebFilter` is registered with `Ordered.HIGHEST_PRECEDENCE` so it sees the unmodified request and the final response. Body capture is opt-in — it only wraps the exchange in `BodyCaptureRequest` / `BodyCaptureResponse` when *either* a logging rule with `exclude-body: false` matches *or* a cache rule matches. This keeps the heap cost off the hot path for routes that don't need it.
 
+`OrderedCorsWebFilter` (the `gatewayCorsFilter` bean) follows at order `-200`, deliberately ahead of Spring Security's `WebFilterChainProxy` at `-100`: the CORS headers are on the response before the security chain can commit a 401 or 403, and a preflight is answered before it reaches authentication. The same `gateway.cors.*` policy is exposed as a `CorsConfigurationSource` bean, which Spring Security's `cors()` applies inside every security chain as well. See [security.md](security.md#cors-and-spring-security).
+
 ## Module layout
 
 ```

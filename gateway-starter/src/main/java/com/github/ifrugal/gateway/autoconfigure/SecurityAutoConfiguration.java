@@ -32,6 +32,13 @@ import java.util.List;
  * <p><b>Important:</b> When security is enabled, the admin endpoints ({@code /gateway/cache/**}
  * and {@code /conman/admin/**}) require authentication by default. Add them to
  * {@code gateway.security.guest-allowed-paths} only if you want to expose them publicly.</p>
+ *
+ * <p><b>CORS.</b> The chain calls {@code cors()}, which applies the single
+ * {@code CorsConfigurationSource} bean in the context (the toolkit's
+ * {@code gatewayCorsConfigurationSource} unless the application declares its own) to the
+ * responses the chain writes itself, so a 401 or 403 reaches the browser with
+ * {@code Access-Control-Allow-Origin} on it. The bundled {@code gatewayCorsFilter} already runs
+ * ahead of this chain for the same reason; the two never duplicate a header.</p>
  */
 @AutoConfiguration
 @ConditionalOnClass(SecurityWebFilterChain.class)
@@ -89,6 +96,14 @@ public class SecurityAutoConfiguration {
         }
 
         return http
+                // Apply the CORS policy inside the chain as well, so a response this
+                // chain writes itself (401 / 403) carries the CORS headers. Uses the
+                // single CorsConfigurationSource bean in the context - the toolkit's
+                // gatewayCorsConfigurationSource unless the application declared its
+                // own - and is a no-op when there is none (gateway.cors.enabled=false).
+                // Spring Security's WebFlux DSL does this by default; spelled out so it
+                // survives the day someone reads the chain and "tidies" it away.
+                .cors(Customizer.withDefaults())
                 .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
                 .csrf(csrf -> csrf.disable())
                 .exceptionHandling(exceptionHandling -> exceptionHandling

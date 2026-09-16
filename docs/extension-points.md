@@ -103,6 +103,36 @@ public class TraceIdEnricher implements WebFilter, Ordered {
 }
 ```
 
+## Replace the CORS policy or filter
+
+The `gateway.cors.*` policy is registered as a reactive `CorsConfigurationSource` bean (`gatewayCorsConfigurationSource`) and applied by `gatewayCorsFilter`, an `OrderedCorsWebFilter` at order `-200` — ahead of Spring Security's `WebFilterChainProxy` (`-100`), so a 401 or 403 the security chain writes itself still carries the CORS headers. Spring Security's `cors()` uses the same bean, so the filter and the chain never disagree.
+
+**Different policy, same filter** — declare your own `CorsConfigurationSource`. The toolkit's steps aside and both the filter and every security chain use yours:
+
+```java
+@Bean
+CorsConfigurationSource corsConfigurationSource() {
+    CorsConfiguration api = new CorsConfiguration();
+    api.setAllowedOriginPatterns(List.of("https://*.example.com"));
+    api.setAllowedMethods(List.of("GET", "POST"));
+    api.setAllowCredentials(true);
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+    source.registerCorsConfiguration("/api/**", api);
+    return source;
+}
+```
+
+**Different filter** — declare a `WebFilter` bean named `gatewayCorsFilter`. Keep it `Ordered` below `-100`, or responses Spring Security writes itself lose their CORS headers again; extending `OrderedCorsWebFilter` gets that for free:
+
+```java
+@Bean
+WebFilter gatewayCorsFilter(CorsConfigurationSource source) {
+    return new OrderedCorsWebFilter(source, new MyCorsProcessor(), OrderedCorsWebFilter.ORDER);
+}
+```
+
+**No CORS handling at all** — `gateway.cors.enabled=false` removes both beans. Spring Security's `cors()` then finds no `CorsConfigurationSource` and does nothing either.
+
 ## Replace the security chain
 
 `SecurityAutoConfiguration` registers a `SecurityWebFilterChain` only when `gateway.security.enabled=true` AND no other `SecurityWebFilterChain` bean exists. To take over the entire authentication pipeline:
@@ -245,6 +275,8 @@ The toolkit's `@ConditionalOnMissingBean(JwtClaimsToHeadersWebFilter.class)` gua
 |---|---|---|
 | Use a different cache backend | `CacheProvider` | `CaffeineProvider` (or `NoOpCacheProvider`) |
 | Replace the logging/caching filter | `LoggingAndCachingWebFilter` | itself |
+| Change the CORS policy | reactive `CorsConfigurationSource` | `gatewayCorsConfigurationSource` |
+| Replace the CORS filter | `WebFilter` named `gatewayCorsFilter` (keep it `Ordered` below `-100`) | `OrderedCorsWebFilter` |
 | Replace the security chain | `SecurityWebFilterChain` | toolkit's chain in `SecurityAutoConfiguration` |
 | Replace the claims-to-headers filter | `JwtClaimsToHeadersWebFilter` | itself |
 | Override the Conman reactive handler | `ConmanHandler` | itself |
