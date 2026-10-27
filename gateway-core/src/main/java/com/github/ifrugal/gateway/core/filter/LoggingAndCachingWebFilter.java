@@ -3,6 +3,7 @@ package com.github.ifrugal.gateway.core.filter;
 import com.github.ifrugal.gateway.core.cache.CacheProvider;
 import com.github.ifrugal.gateway.core.config.CachingProperties;
 import com.github.ifrugal.gateway.core.config.LoggingProperties;
+import com.github.ifrugal.gateway.core.config.RequestIdProperties;
 import com.github.ifrugal.gateway.core.filter.utils.RequestMatcher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.Ordered;
@@ -16,6 +17,7 @@ import org.springframework.web.server.WebFilterChain;
 import org.springframework.web.util.pattern.PathPattern;
 import org.springframework.web.util.pattern.PathPatternParser;
 import reactor.core.publisher.Mono;
+import reactor.util.context.Context;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -28,18 +30,44 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
- * WebFilter that provides request/response logging and response caching.
+ * WebFilter that provides request-id handling, request/response logging and response caching.
  * Runs at highest precedence to capture all requests.
+ *
+ * <p><b>Request id.</b> Every request, including ignored paths and cache hits, gets exactly
+ * one request id (see {@link RequestIdProperties}):</p>
+ * <ul>
+ *   <li>the first inbound value of the configured header is kept only if it fully matches the
+ *       configured pattern; otherwise a random UUID is generated;</li>
+ *   <li>the forwarded request carries exactly one value of the header (set, never added);</li>
+ *   <li>the id is echoed on every response through {@link ServerHttpResponse#beforeCommit},
+ *       so it survives upstream header copying, Spring Security rejections and error handling;</li>
+ *   <li>the id is stored as the exchange attribute {@link #REQUEST_ID_ATTRIBUTE} and in the
+ *       Reactor Context under {@link #REQUEST_ID_CONTEXT_KEY}, which
+ *       {@link RequestIdThreadLocalAccessor} bridges to the SLF4J MDC.</li>
+ * </ul>
  */
 @Slf4j
 public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
+
+    /**
+     * Exchange attribute holding the final (validated or generated) request id.
+     */
+    public static final String REQUEST_ID_ATTRIBUTE = LoggingAndCachingWebFilter.class.getName() + ".requestId";
+
+    /**
+     * Reactor Context key holding the final request id for the whole downstream filter chain.
+     */
+    public static final String REQUEST_ID_CONTEXT_KEY = "requestId";
 
     private final LoggingProperties loggingProperties;
     private final CachingProperties cachingProperties;
     private final CacheProvider cacheProvider;
     private final List<PathPattern> pathPatternsToIgnore;
+    private final String requestIdHeader;
+    private final Pattern requestIdPattern;
 
     private static final PathPatternParser patternParser = new PathPatternParser();
 
@@ -66,9 +94,25 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
             CachingProperties cachingProperties,
             CacheProvider cacheProvider,
             List<String> ignorePaths) {
+        this(loggingProperties, cachingProperties, cacheProvider, ignorePaths, new RequestIdProperties());
+    }
+
+    /**
+     * @param ignorePaths         paths skipped for logging/caching (defaults when null or empty);
+     *                            they still get a request id
+     * @param requestIdProperties request-id settings; the pattern is compiled once here
+     */
+    public LoggingAndCachingWebFilter(
+            LoggingProperties loggingProperties,
+            CachingProperties cachingProperties,
+            CacheProvider cacheProvider,
+            List<String> ignorePaths,
+            RequestIdProperties requestIdProperties) {
         this.loggingProperties = loggingProperties;
         this.cachingProperties = cachingProperties;
         this.cacheProvider = cacheProvider;
+        this.requestIdHeader = requestIdProperties.getHeaderName();
+        this.requestIdPattern = Pattern.compile(requestIdProperties.getPattern());
 
         List<String> paths = (ignorePaths != null && !ignorePaths.isEmpty()) ? ignorePaths : DEFAULT_IGNORE_PATHS;
         this.pathPatternsToIgnore = paths.stream()
@@ -83,27 +127,61 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
 
     @Override
     public Mono<Void> filter(final ServerWebExchange exchange, final WebFilterChain chain) {
-        // Skip ignored paths
+        final String requestId = resolveRequestId(exchange.getRequest());
+
+        // Forward exactly one value downstream (set replaces every inbound value).
+        final ServerWebExchange requestIdExchange = exchange.mutate()
+                .request(builder -> builder.headers(headers -> headers.set(requestIdHeader, requestId)))
+                .build();
+        // Attributes are shared between the original and the mutated exchange.
+        exchange.getAttributes().put(REQUEST_ID_ATTRIBUTE, requestId);
+        echoRequestId(exchange.getResponse(), requestId);
+
+        // defer() so that this filter's own work runs inside the context written below; with
+        // automatic context propagation enabled, contextWrite also sets the MDC around the
+        // subscription and every signal, and restores it afterwards.
+        return Mono.defer(() -> filterWithRequestId(requestIdExchange, chain))
+                .contextWrite(Context.of(REQUEST_ID_CONTEXT_KEY, requestId));
+    }
+
+    /**
+     * Return the first inbound request-id value when it fully matches the configured pattern,
+     * otherwise a new random UUID.
+     */
+    String resolveRequestId(ServerHttpRequest request) {
+        final String candidate = request.getHeaders().getFirst(requestIdHeader);
+        if (candidate != null && requestIdPattern.matcher(candidate).matches()) {
+            return candidate;
+        }
+        if (candidate != null) {
+            // The rejected value is deliberately not logged: it is untrusted input.
+            log.debug("Replacing invalid inbound {} header with a generated id", requestIdHeader);
+        }
+        return UUID.randomUUID().toString();
+    }
+
+    /**
+     * Echo the request id on the response. The header is set immediately (visible to later
+     * filters) and again right before commit, so it wins over upstream header copying by the
+     * gateway and over any later filter or error handler that overwrites the header.
+     */
+    private void echoRequestId(ServerHttpResponse response, String requestId) {
+        response.getHeaders().set(requestIdHeader, requestId);
+        response.beforeCommit(() -> {
+            response.getHeaders().set(requestIdHeader, requestId);
+            return Mono.empty();
+        });
+    }
+
+    private Mono<Void> filterWithRequestId(final ServerWebExchange originalExchange, final WebFilterChain chain) {
+        // Skip logging/caching for ignored paths (they still got a request id above)
         boolean shouldIgnore = pathPatternsToIgnore.stream()
-                .anyMatch(pattern -> pattern.matches(exchange.getRequest().getPath()));
+                .anyMatch(pattern -> pattern.matches(originalExchange.getRequest().getPath()));
         if (shouldIgnore) {
-            return chain.filter(exchange);
+            return chain.filter(originalExchange);
         }
 
         final Instant startTime = Instant.now();
-        ServerHttpRequest request = exchange.getRequest();
-        final ServerWebExchange originalExchange;
-
-        // Add request ID if not present
-        final String requestId = request.getHeaders().getFirst("x-request-id");
-        if (requestId == null) {
-            final String newRequestId = UUID.randomUUID().toString();
-            request = request.mutate().header("x-request-id", newRequestId).build();
-            originalExchange = exchange.mutate().request(request).build();
-        } else {
-            originalExchange = exchange;
-        }
-
         final ServerHttpRequest finalRequest = originalExchange.getRequest();
 
         // Determine if we should log this request
@@ -203,7 +281,7 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
         final Map<String, Object> requestInfo = new LinkedHashMap<>();
 
         requestInfo.put("timestamp", Instant.now().toString());
-        requestInfo.put("requestId", request.getHeaders().getFirst("x-request-id"));
+        requestInfo.put("requestId", exchange.getAttribute(REQUEST_ID_ATTRIBUTE));
         requestInfo.put("method", request.getMethod().toString());
         requestInfo.put("path", request.getPath().value());
         requestInfo.put("queryParams", request.getQueryParams());
@@ -224,7 +302,7 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
         final Map<String, Object> responseInfo = new LinkedHashMap<>();
 
         responseInfo.put("timestamp", Instant.now().toString());
-        responseInfo.put("requestId", exchange.getRequest().getHeaders().getFirst("x-request-id"));
+        responseInfo.put("requestId", exchange.getAttribute(REQUEST_ID_ATTRIBUTE));
         responseInfo.put("status", response.getStatusCode() != null ?
                 response.getStatusCode().value() : HttpStatus.INTERNAL_SERVER_ERROR.value());
         responseInfo.put("headers", response.getHeaders());
@@ -246,7 +324,7 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
         final Map<String, Object> responseInfo = new LinkedHashMap<>();
 
         responseInfo.put("timestamp", Instant.now().toString());
-        responseInfo.put("requestId", exchange.getRequest().getHeaders().getFirst("x-request-id"));
+        responseInfo.put("requestId", exchange.getAttribute(REQUEST_ID_ATTRIBUTE));
         responseInfo.put("status", response.getStatusCode() != null ?
                 response.getStatusCode().value() : HttpStatus.INTERNAL_SERVER_ERROR.value());
         responseInfo.put("headers", response.getHeaders());

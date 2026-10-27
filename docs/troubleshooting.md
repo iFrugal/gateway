@@ -75,9 +75,12 @@ Three likely causes, in order:
 
 Misleading — the marker indicates the captured copy was capped, not the request. Check `gateway.logging.max-body-bytes` (default 64 KiB). Raise it if you legitimately log large payloads, lower it if you're memory-constrained. Setting it to `0` disables truncation entirely (heap-risky).
 
-### `x-request-id` missing
+### `x-request-id` missing or different from what the client sent
 
-The filter only adds the header on its outbound `chain.filter` mutation. If `gateway.logging.enabled: false`, the mutation doesn't happen and no `x-request-id` is generated. Either flip logging on or set the header from upstream.
+Every request gets an id and every response echoes it, independently of `gateway.logging.enabled` and `ignore-paths`.
+If the response has no `x-request-id`, check that `LoggingAndCachingWebFilter` is registered (a user-defined bean replaces it) and whether `gateway.request-id.header-name` was changed.
+If the echoed id differs from the one the client sent, the inbound value did not match `gateway.request-id.pattern` (default `^[A-Za-z0-9._-]{8,64}$`) and was replaced with a UUID.
+Browser clients can read the header because it is added to CORS exposed headers automatically.
 
 ### Sensitive header still appears in logs
 

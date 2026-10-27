@@ -32,6 +32,13 @@ A comprehensive Spring Cloud Gateway toolkit providing request/response logging,
 ### 1. Request/Response Logging
 Structured request/response logging with configurable path patterns, body capture, sensitive header redaction, and automatic `x-request-id` propagation. Ignore paths are configurable to skip health checks and documentation endpoints.
 
+Request ids are hardened on every request:
+- An inbound `x-request-id` is kept only if it matches `^[A-Za-z0-9._-]{8,64}$`; anything else (missing, blank, too short or long, injection characters) is replaced with a random UUID.
+- The forwarded request carries exactly one value, and the id is echoed on every response, including cache hits, ignored paths such as `/actuator/health`, Spring Security 401/403 responses and error responses.
+- The id is available as the exchange attribute `LoggingAndCachingWebFilter.REQUEST_ID_ATTRIBUTE`, in the Reactor Context under `requestId`, and in the SLF4J MDC under `requestId` for every log line written while the request is processed.
+- WebFlux error bodies report the same id in their `requestId` field.
+- See [Logging](docs/logging.md#request-ids) for details.
+
 ### 2. Response Caching
 Caffeine-based in-memory caching with per-entry TTL via Caffeine's variable expiration. Cache keys are deterministic (sorted query parameters) to prevent collisions. Includes a REST management API for cache inspection and invalidation.
 
@@ -43,6 +50,7 @@ OAuth2 Resource Server (JWT validation) and OAuth2 Login flow with configurable 
 
 ### 5. CORS Configuration
 Fully configurable via YAML — allowed origins, methods, headers, and credentials.
+The request-id header is added to `Access-Control-Expose-Headers` automatically so browser clients can read it.
 
 ### 6. Service Discovery (Optional)
 No vendor lock-in — works without service discovery. Profile-based activation for Consul, Eureka, or static routes.
@@ -107,6 +115,12 @@ All features are configured under the `gateway` prefix in `application.yml`:
 
 ```yaml
 gateway:
+  request-id:
+    header-name: x-request-id        # Inbound, forwarded and echoed header
+    pattern: "^[A-Za-z0-9._-]{8,64}$" # Inbound ids not matching are replaced with a UUID
+    mdc-key: requestId               # SLF4J MDC key
+    context-propagation: true        # Bridge the id to the MDC via Reactor context propagation
+
   logging:
     enabled: true
     ignore-paths:                    # Override default ignored paths
