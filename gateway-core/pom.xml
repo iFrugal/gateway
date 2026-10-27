@@ -68,6 +68,13 @@
             <artifactId>caffeine</artifactId>
         </dependency>
 
+        <!-- Micrometer context-propagation: bridges the Reactor Context
+             request id to the SLF4J MDC (version managed by the Boot BOM) -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>context-propagation</artifactId>
+        </dependency>
+
         <!-- LazyDevs utilities -->
         <dependency>
             <groupId>com.github.ifrugal</groupId>

@@ -48,6 +48,31 @@ gateway:
 
 ---
 
+### Request ID Configuration (gateway.request-id.*)
+
+Request-id validation, forwarding, response echo and MDC propagation.
+Every request gets exactly one id, including ignored paths and cache hits.
+See [logging.md](logging.md#request-ids) for the full behaviour.
+
+| YAML Property | Environment Variable | Default | Description |
+|---|---|---|---|
+| `gateway.request-id.header-name` | - | `x-request-id` | Header read from the request, forwarded downstream (exactly one value) and echoed on every response. Also added to CORS exposed headers. |
+| `gateway.request-id.pattern` | - | `^[A-Za-z0-9._-]{8,64}$` | An inbound id is kept only if its first value fully matches; otherwise a random UUID is used. |
+| `gateway.request-id.mdc-key` | - | `requestId` | SLF4J MDC key holding the id in every log line of the request. |
+| `gateway.request-id.context-propagation` | - | `true` | Register the MDC accessor with Micrometer context-propagation and enable Reactor automatic context propagation. |
+
+**Example Configuration:**
+```yaml
+gateway:
+  request-id:
+    header-name: x-request-id
+    pattern: "^[A-Za-z0-9._-]{8,64}$"
+    mdc-key: requestId
+    context-propagation: true
+```
+
+---
+
 ### Caching Configuration (gateway.caching.*)
 
 Response caching with Caffeine provider support.
@@ -91,7 +116,7 @@ Cross-Origin Resource Sharing configuration for browser-based clients.
 | `gateway.cors.allowed-origins` | `GATEWAY_CORS_ORIGINS` | `[]` | Comma-separated allowed origins |
 | `gateway.cors.allowed-methods` | - | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | Allowed HTTP methods |
 | `gateway.cors.allowed-headers` | - | `*` | Allowed request headers |
-| `gateway.cors.exposed-headers` | - | `[]` | Headers exposed to clients |
+| `gateway.cors.exposed-headers` | - | `[]` | Headers exposed to clients. The request-id header (`gateway.request-id.header-name`) is always added. |
 | `gateway.cors.max-age` | `GATEWAY_CORS_MAX_AGE` | `3600` | Preflight cache duration (seconds) |
 | `gateway.cors.allow-credentials` | `GATEWAY_CORS_ALLOW_CREDENTIALS` | `true` | Allow credentials in CORS requests |
 
