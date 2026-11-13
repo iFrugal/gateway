@@ -108,7 +108,9 @@ Returns early from all cache operations without side effects. Useful for develop
 
 `LoggingAndCachingWebFilter` (`Ordered.HIGHEST_PRECEDENCE`) handles caching for any request that survives the ignore-path check:
 
-1. **Ignore path check:** Paths in `gateway.logging.ignore-paths` are skipped by *both* logging and caching — the filter exits early and forwards the request unchanged. Defaults include `/actuator/health`, `/actuator/health/**`, `/health`, `/swagger-ui/**`, `/v3/api-docs/**`.
+1. **Ignore path check:** Paths in `gateway.logging.ignore-paths` are skipped by *both* logging and caching.
+   The filter still assigns and echoes a request id, then forwards the request without logging or caching it.
+   Defaults include `/actuator/health`, `/actuator/health/**`, `/health`, `/swagger-ui/**`, `/v3/api-docs/**`.
 2. **Rule matching:** Determine if request path/method matches any caching rules
 3. **Cache lookup:** Check if a cached response exists for the generated key
 4. **Cache hit:** Short-circuit upstream call, return cached response with `X-Cache: HIT` header
