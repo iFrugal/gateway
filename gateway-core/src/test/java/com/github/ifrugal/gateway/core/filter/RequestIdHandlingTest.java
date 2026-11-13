@@ -283,6 +283,47 @@ class RequestIdHandlingTest {
             assertThat((String) exchange.getAttribute(LoggingAndCachingWebFilter.REQUEST_ID_ATTRIBUTE)).isEqualTo(id);
         }
 
+        @ParameterizedTest(name = "skips logging but still echoes an id on default ignored path {0}")
+        @ValueSource(strings = {"/actuator/health", "/actuator/health/liveness",
+                "/actuator/health/readiness", "/health"})
+        void defaultHealthPathsAreIgnoredButEchoed(String path) {
+            LoggingProperties loggingProps = new LoggingProperties();
+            LoggingProperties.RequestConfig config = new LoggingProperties.RequestConfig();
+            config.setPaths(List.of("/**"));
+            config.setMethods(List.of("*"));
+            config.setExcludeBody(false);
+            loggingProps.setRequests(List.of(config));
+            LoggingAndCachingWebFilter filter = new LoggingAndCachingWebFilter(
+                    loggingProps, new CachingProperties(), new NoOpCacheProvider());
+            MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get(path).build());
+
+            ServerWebExchange forwarded = run(filter, exchange);
+
+            // Logging decorates the response; an ignored path must reach the chain undecorated.
+            assertThat(forwarded.getResponse()).isSameAs(exchange.getResponse());
+            String id = forwarded.getRequest().getHeaders().getFirst(HEADER);
+            assertIsUuid(id);
+            assertThat(exchange.getResponse().getHeaders().get(HEADER)).containsExactly(id);
+        }
+
+        @Test
+        @DisplayName("should still log (decorate) a non-ignored path with the same logging rule")
+        void nonIgnoredPathIsLogged() {
+            LoggingProperties loggingProps = new LoggingProperties();
+            LoggingProperties.RequestConfig config = new LoggingProperties.RequestConfig();
+            config.setPaths(List.of("/**"));
+            config.setMethods(List.of("*"));
+            config.setExcludeBody(false);
+            loggingProps.setRequests(List.of(config));
+            LoggingAndCachingWebFilter filter = new LoggingAndCachingWebFilter(
+                    loggingProps, new CachingProperties(), new NoOpCacheProvider());
+            MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/users").build());
+
+            ServerWebExchange forwarded = run(filter, exchange);
+
+            assertThat(forwarded.getResponse()).isNotSameAs(exchange.getResponse());
+        }
+
         @Test
         @DisplayName("should write the id into the Reactor Context of the downstream chain")
         void writesReactorContext() {

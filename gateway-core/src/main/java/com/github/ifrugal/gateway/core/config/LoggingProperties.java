@@ -58,7 +58,9 @@ public class LoggingProperties {
             "Set-Cookie",
             "Proxy-Authorization",
             "X-API-Key",
-            "X-Auth-Token"
+            "X-Auth-Token",
+            "X-Gateway-Proof",
+            "X-Service-Token"
     );
 
     /**

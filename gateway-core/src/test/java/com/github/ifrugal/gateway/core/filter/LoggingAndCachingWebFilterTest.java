@@ -533,4 +533,21 @@ class LoggingAndCachingWebFilterTest {
 
         assertThat(chainCalled.get()).isTrue();
     }
+
+    @Test
+    @DisplayName("should redact x-gateway-proof and x-service-token with default sensitive headers")
+    void redactsGatewayProofAndServiceToken() {
+        LoggingAndCachingWebFilter filter = createFilter(
+                new LoggingProperties(), new CachingProperties(), noOpCache);
+        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+        headers.add("x-gateway-proof", "proof-secret");
+        headers.add("x-service-token", "token-secret");
+        headers.add("x-trace", "visible");
+
+        java.util.Map<String, List<String>> safe = filter.redactSensitiveHeaders(headers);
+
+        assertThat(safe.get("x-gateway-proof")).containsExactly("[REDACTED]");
+        assertThat(safe.get("x-service-token")).containsExactly("[REDACTED]");
+        assertThat(safe.get("x-trace")).containsExactly("visible");
+    }
 }

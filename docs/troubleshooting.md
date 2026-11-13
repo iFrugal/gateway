@@ -60,7 +60,7 @@ Or use `gateway-app` directly, which already declares both.
 Three likely causes, in order:
 
 1. **`gateway.logging.enabled: false`** — flip to `true`.
-2. **Path matches an ignore pattern.** Default ignore list: `/actuator/health`, `/actuator/health/ping`, `/swagger-ui/**`, `/v3/api-docs/**`, `/swagger-resources/**`. Set `gateway.logging.ignore-paths` to a different list if you want them logged.
+2. **Path matches an ignore pattern.** Default ignore list: `/actuator/health`, `/actuator/health/**`, `/health`, `/swagger-ui/**`, `/v3/api-docs/**`, `/swagger-resources/**`. Set `gateway.logging.ignore-paths` to a different list if you want them logged.
 3. **No `requests[]` rule matches the path/method.** The filter still emits the `Request` line, but the body is only captured when a rule matches with `exclude-body: false`. To log bodies for everything:
    ```yaml
    gateway:
@@ -84,7 +84,7 @@ Browser clients can read the header because it is added to CORS exposed headers 
 
 ### Sensitive header still appears in logs
 
-Your secret header isn't in the redaction list. Defaults: `Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token`. Add your custom name:
+Your secret header isn't in the redaction list. Defaults: `Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token, X-Gateway-Proof, X-Service-Token`. Add your custom name:
 
 ```yaml
 gateway:
@@ -96,6 +96,8 @@ gateway:
       - Proxy-Authorization
       - X-API-Key
       - X-Auth-Token
+      - X-Gateway-Proof
+      - X-Service-Token
       - X-Tenant-Secret    # your custom one
 ```
 

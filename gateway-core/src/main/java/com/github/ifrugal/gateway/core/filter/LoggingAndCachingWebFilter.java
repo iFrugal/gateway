@@ -76,7 +76,8 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
      */
     private static final List<String> DEFAULT_IGNORE_PATHS = List.of(
             "/actuator/health",
-            "/actuator/health/ping",
+            "/actuator/health/**",
+            "/health",
             "/swagger-ui/**",
             "/v3/api-docs/**",
             "/swagger-resources/**"

@@ -24,7 +24,8 @@ class LoggingPropertiesTest {
         // Default sensitive-header list redacts common credential carriers.
         assertThat(props.getSensitiveHeaders())
                 .contains("Authorization", "Cookie", "Set-Cookie",
-                        "Proxy-Authorization", "X-API-Key", "X-Auth-Token");
+                        "Proxy-Authorization", "X-API-Key", "X-Auth-Token",
+                        "X-Gateway-Proof", "X-Service-Token");
     }
 
     @Test

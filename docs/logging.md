@@ -17,7 +17,9 @@ gateway:
       - Proxy-Authorization
       - X-API-Key
       - X-Auth-Token
-    ignore-paths:                # default: /actuator/health, /swagger-ui/**, /v3/api-docs/**, /swagger-resources/**
+      - X-Gateway-Proof
+      - X-Service-Token
+    ignore-paths:                # default: /actuator/health, /actuator/health/**, /health, /swagger-ui/**, /v3/api-docs/**, /swagger-resources/**
       - /actuator/health
       - /swagger-ui/**
     requests:                    # per-route logging rules
@@ -36,7 +38,7 @@ gateway:
 | `gateway.logging.enabled` | `true` | Master switch for the filter. |
 | `gateway.logging.level` | `"info"` | Reserved for future use; emitted log lines are currently always at `INFO`. |
 | `gateway.logging.max-body-bytes` | `65536` (64 KiB) | Maximum bytes captured into the in-memory copy used for logging and caching. Bodies still flow to upstream / downstream **in full** — only the captured copy is truncated. Set to `0` to disable the cap entirely (legacy behaviour; not recommended). Tune **below** `spring.codec.max-in-memory-size` — the framework limit is the real ceiling and this property is the finer-grained cap. |
-| `gateway.logging.sensitive-headers` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token]` | Header names whose values are replaced with `[REDACTED]` in structured log output. Matching is case-insensitive. Setting an empty list disables redaction. |
+| `gateway.logging.sensitive-headers` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token, X-Gateway-Proof, X-Service-Token]` | Header names whose values are replaced with `[REDACTED]` in structured log output. Matching is case-insensitive. Setting an empty list disables redaction. |
 | `gateway.logging.ignore-paths` | health/swagger defaults | Patterns excluded from *both* logging and caching. The filter exits early without wrapping the exchange. |
 | `gateway.logging.requests[]` | `[]` | Per-route rules; see `RequestConfig` below. |
 
@@ -141,6 +143,8 @@ The filter copies the request headers into a fresh map before logging, then repl
 - `Proxy-Authorization`
 - `X-API-Key`
 - `X-Auth-Token`
+- `X-Gateway-Proof`
+- `X-Service-Token`
 
 **Extending the list** — add your application's secret-carrying headers to the YAML:
 
@@ -154,6 +158,8 @@ gateway:
       - Proxy-Authorization
       - X-API-Key
       - X-Auth-Token
+      - X-Gateway-Proof
+      - X-Service-Token
       - X-Tenant-Secret      # your custom header
       - X-Signature
 ```
@@ -177,7 +183,8 @@ If you need to subclass any of these, prefer constructor injection of the byte c
 When `gateway.logging.ignore-paths` is empty (the default), the filter applies a built-in list:
 
 - `/actuator/health`
-- `/actuator/health/ping`
+- `/actuator/health/**` (covers liveness, readiness and any other health group)
+- `/health`
 - `/swagger-ui/**`
 - `/v3/api-docs/**`
 - `/swagger-resources/**`
