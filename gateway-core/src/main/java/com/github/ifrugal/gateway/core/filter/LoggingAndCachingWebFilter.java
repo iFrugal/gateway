@@ -336,15 +336,21 @@ public class LoggingAndCachingWebFilter implements WebFilter, Ordered {
 
     /**
      * Return a copy of the request headers with values for any name in
-     * {@link LoggingProperties#getSensitiveHeaders()} replaced by a redaction
+     * {@link LoggingProperties#getSensitiveHeaders()} or
+     * {@link LoggingProperties#getAdditionalSensitiveHeaders()} replaced by a redaction
      * marker. The match is case-insensitive on the header name. The returned
      * map is a fresh {@link LinkedHashMap} — modifying it does not touch the
      * underlying request headers.
      */
+    private static List<String> nullToEmpty(List<String> list) {
+        return list == null ? List.of() : list;
+    }
+
     Map<String, List<String>> redactSensitiveHeaders(org.springframework.http.HttpHeaders headers) {
         final Set<String> sensitiveLower = new HashSet<>();
-        final List<String> configured = loggingProperties.getSensitiveHeaders();
-        if (configured != null) {
+        for (List<String> configured : List.of(
+                nullToEmpty(loggingProperties.getSensitiveHeaders()),
+                nullToEmpty(loggingProperties.getAdditionalSensitiveHeaders()))) {
             for (String h : configured) {
                 if (h != null && !h.isBlank()) {
                     sensitiveLower.add(h.toLowerCase(Locale.ROOT));

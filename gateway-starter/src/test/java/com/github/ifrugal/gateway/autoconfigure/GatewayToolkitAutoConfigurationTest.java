@@ -3,6 +3,7 @@ package com.github.ifrugal.gateway.autoconfigure;
 import com.github.ifrugal.gateway.core.cache.CacheProvider;
 import com.github.ifrugal.gateway.core.cache.CaffeineProvider;
 import com.github.ifrugal.gateway.core.cache.NoOpCacheProvider;
+import com.github.ifrugal.gateway.core.config.LoggingProperties;
 import com.github.ifrugal.gateway.core.config.RequestIdProperties;
 import com.github.ifrugal.gateway.core.filter.LoggingAndCachingWebFilter;
 import com.github.ifrugal.gateway.core.filter.RequestIdThreadLocalAccessor;
@@ -41,6 +42,19 @@ class GatewayToolkitAutoConfigurationTest {
                 .run(context -> {
                     assertThat(context).hasSingleBean(CacheProvider.class);
                     assertThat(context.getBean(CacheProvider.class)).isInstanceOf(CaffeineProvider.class);
+                });
+    }
+
+    @Test
+    @DisplayName("should bind additional-sensitive-headers and keep default sensitive headers")
+    void additionalSensitiveHeadersBind() {
+        contextRunner
+                .withPropertyValues("gateway.logging.additional-sensitive-headers=X-Internal-Secret")
+                .run(context -> {
+                    LoggingProperties props = context.getBean(LoggingProperties.class);
+                    assertThat(props.getAdditionalSensitiveHeaders()).containsExactly("X-Internal-Secret");
+                    assertThat(props.getSensitiveHeaders())
+                            .containsAll(LoggingProperties.DEFAULT_SENSITIVE_HEADERS);
                 });
     }
 

@@ -17,8 +17,7 @@ gateway:
       - Proxy-Authorization
       - X-API-Key
       - X-Auth-Token
-      - X-Gateway-Proof
-      - X-Service-Token
+    additional-sensitive-headers: [] # extra headers to redact, on top of the list above
     ignore-paths:                # default: /actuator/health, /actuator/health/**, /health, /swagger-ui/**, /v3/api-docs/**, /swagger-resources/**
       - /actuator/health
       - /swagger-ui/**
@@ -38,7 +37,8 @@ gateway:
 | `gateway.logging.enabled` | `true` | Master switch for the filter. |
 | `gateway.logging.level` | `"info"` | Reserved for future use; emitted log lines are currently always at `INFO`. |
 | `gateway.logging.max-body-bytes` | `65536` (64 KiB) | Maximum bytes captured into the in-memory copy used for logging and caching. Bodies still flow to upstream / downstream **in full** — only the captured copy is truncated. Set to `0` to disable the cap entirely (legacy behaviour; not recommended). Tune **below** `spring.codec.max-in-memory-size` — the framework limit is the real ceiling and this property is the finer-grained cap. |
-| `gateway.logging.sensitive-headers` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token, X-Gateway-Proof, X-Service-Token]` | Header names whose values are replaced with `[REDACTED]` in structured log output. Matching is case-insensitive. Setting an empty list disables redaction. |
+| `gateway.logging.sensitive-headers` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token]` | Header names whose values are replaced with `[REDACTED]` in structured log output. Matching is case-insensitive. Setting this property REPLACES the default list (Spring list binding). |
+| `gateway.logging.additional-sensitive-headers` | `[]` | Header names redacted in addition to `sensitive-headers`. Use this to add custom secret headers while keeping the defaults. |
 | `gateway.logging.ignore-paths` | health/swagger defaults | Patterns excluded from *both* logging and caching. The filter exits early without wrapping the exchange. |
 | `gateway.logging.requests[]` | `[]` | Per-route rules; see `RequestConfig` below. |
 
@@ -133,7 +133,7 @@ The same id is included in both the request and response log entries; use it to 
 
 ## Sensitive-header redaction
 
-The filter copies the request headers into a fresh map before logging, then replaces the values for any name in `gateway.logging.sensitive-headers` with the single-element list `["[REDACTED]"]`. The match is case-insensitive: configuring `Authorization` redacts `Authorization`, `authorization`, and `AUTHORIZATION` equally.
+The filter copies the request headers into a fresh map before logging, then replaces the values for any name in `gateway.logging.sensitive-headers` or `gateway.logging.additional-sensitive-headers` with the single-element list `["[REDACTED]"]`. The match is case-insensitive: configuring `Authorization` redacts `Authorization`, `authorization`, and `AUTHORIZATION` equally.
 
 **Defaults** redact:
 
@@ -143,26 +143,20 @@ The filter copies the request headers into a fresh map before logging, then repl
 - `Proxy-Authorization`
 - `X-API-Key`
 - `X-Auth-Token`
-- `X-Gateway-Proof`
-- `X-Service-Token`
 
-**Extending the list** — add your application's secret-carrying headers to the YAML:
+**Extending the list** - add your application's secret-carrying headers with `additional-sensitive-headers`.
+The defaults stay in place:
 
 ```yaml
 gateway:
   logging:
-    sensitive-headers:
-      - Authorization
-      - Cookie
-      - Set-Cookie
-      - Proxy-Authorization
-      - X-API-Key
-      - X-Auth-Token
-      - X-Gateway-Proof
-      - X-Service-Token
-      - X-Tenant-Secret      # your custom header
-      - X-Signature
+    additional-sensitive-headers:
+      - X-Internal-Secret
 ```
+
+**Replacing the list** - setting `gateway.logging.sensitive-headers` REPLACES the default list (Spring list binding).
+Anyone using it must repeat the defaults they still want.
+`additional-sensitive-headers` is the additive option and is applied on top of whichever list is active.
 
 The redacted map is what the filter logs; the original headers reach the upstream service unmodified.
 
@@ -224,4 +218,4 @@ Two log lines are emitted per request: `Request: {…}` before the chain proceed
 | Client-sent id replaced with a UUID | Value does not match `gateway.request-id.pattern` | Send 8 to 64 characters from `A-Z a-z 0-9 . _ -`, or adjust the pattern. |
 | Bodies empty in logs | `exclude-body: true` for the matching rule, OR request body never arrived | Inspect the matching `RequestConfig`; if you see `...[truncated]` instead of empty, the cap is firing as expected. |
 | `...[truncated]` showing up for "small" bodies | `max-body-bytes` is too low for your traffic shape | Increase the property; or accept the truncation. |
-| Custom secret header leaking | Header is not in `sensitive-headers` | Add it to the YAML list — see "Extending the list" above. |
+| Custom secret header leaking | Header is not in `sensitive-headers` | Add it to `additional-sensitive-headers` - see "Extending the list" above. |

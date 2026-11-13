@@ -84,22 +84,18 @@ Browser clients can read the header because it is added to CORS exposed headers 
 
 ### Sensitive header still appears in logs
 
-Your secret header isn't in the redaction list. Defaults: `Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token, X-Gateway-Proof, X-Service-Token`. Add your custom name:
+Your secret header isn't in the redaction list.
+Defaults: `Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token`.
+Add your custom name with `additional-sensitive-headers`, which keeps the defaults:
 
 ```yaml
 gateway:
   logging:
-    sensitive-headers:
-      - Authorization
-      - Cookie
-      - Set-Cookie
-      - Proxy-Authorization
-      - X-API-Key
-      - X-Auth-Token
-      - X-Gateway-Proof
-      - X-Service-Token
-      - X-Tenant-Secret    # your custom one
+    additional-sensitive-headers:
+      - X-Internal-Secret
 ```
+
+Setting `gateway.logging.sensitive-headers` instead REPLACES the default list (Spring list binding), so you would have to repeat every default you still want.
 
 Matching is case-insensitive. The original headers reach the upstream service unredacted; only the **logged copy** is masked.
 

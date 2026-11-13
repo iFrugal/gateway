@@ -534,20 +534,53 @@ class LoggingAndCachingWebFilterTest {
         assertThat(chainCalled.get()).isTrue();
     }
 
-    @Test
-    @DisplayName("should redact x-gateway-proof and x-service-token with default sensitive headers")
-    void redactsGatewayProofAndServiceToken() {
-        LoggingAndCachingWebFilter filter = createFilter(
-                new LoggingProperties(), new CachingProperties(), noOpCache);
+    private java.util.Map<String, List<String>> redactWith(
+            List<String> sensitive, List<String> additional, String... names) {
+        LoggingProperties props = new LoggingProperties();
+        if (sensitive != null) {
+            props.setSensitiveHeaders(sensitive);
+        }
+        if (additional != null) {
+            props.setAdditionalSensitiveHeaders(additional);
+        }
+        LoggingAndCachingWebFilter filter = createFilter(props, new CachingProperties(), noOpCache);
         org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
-        headers.add("x-gateway-proof", "proof-secret");
-        headers.add("x-service-token", "token-secret");
+        for (String n : names) {
+            headers.add(n, "secret");
+        }
         headers.add("x-trace", "visible");
+        return filter.redactSensitiveHeaders(headers);
+    }
 
-        java.util.Map<String, List<String>> safe = filter.redactSensitiveHeaders(headers);
+    @Test
+    @DisplayName("additionalSensitiveHeaders are redacted case-insensitively and defaults still apply")
+    void additionalSensitiveHeadersKeepDefaults() {
+        java.util.Map<String, List<String>> safe = redactWith(
+                null, List.of("X-Internal-Secret"), "x-internal-secret", "Authorization");
 
-        assertThat(safe.get("x-gateway-proof")).containsExactly("[REDACTED]");
-        assertThat(safe.get("x-service-token")).containsExactly("[REDACTED]");
+        assertThat(safe.get("x-internal-secret")).containsExactly("[REDACTED]");
+        assertThat(safe.get("Authorization")).containsExactly("[REDACTED]");
         assertThat(safe.get("x-trace")).containsExactly("visible");
+    }
+
+    @Test
+    @DisplayName("sensitiveHeaders replaces the defaults when set")
+    void sensitiveHeadersReplacesDefaults() {
+        java.util.Map<String, List<String>> safe = redactWith(
+                List.of("X-Internal-Secret"), null, "x-internal-secret", "Authorization");
+
+        assertThat(safe.get("x-internal-secret")).containsExactly("[REDACTED]");
+        assertThat(safe.get("Authorization")).containsExactly("secret");
+    }
+
+    @Test
+    @DisplayName("sensitiveHeaders and additionalSensitiveHeaders are combined as a union")
+    void sensitiveAndAdditionalAreUnion() {
+        java.util.Map<String, List<String>> safe = redactWith(
+                List.of("X-One"), List.of("X-Two"), "x-one", "x-two", "Authorization");
+
+        assertThat(safe.get("x-one")).containsExactly("[REDACTED]");
+        assertThat(safe.get("x-two")).containsExactly("[REDACTED]");
+        assertThat(safe.get("Authorization")).containsExactly("secret");
     }
 }
