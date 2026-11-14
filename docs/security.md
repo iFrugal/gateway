@@ -145,7 +145,7 @@ gateway:
 | `allowed-origins` | List<String> | `[]` | Allowed origins |
 | `allowed-methods` | List<String> | `[GET, POST, PUT, PATCH, DELETE, OPTIONS]` | Allowed HTTP methods |
 | `allowed-headers` | List<String> | `["*"]` | Allowed request headers |
-| `exposed-headers` | List<String> | `[]` | Headers exposed to clients |
+| `exposed-headers` | List<String> | `[]` | Headers exposed to clients. The request-id header (`gateway.request-id.header-name`) is always added, without case-insensitive duplicates. |
 | `max-age` | long | `3600` | Preflight cache duration (seconds) |
 | `allow-credentials` | boolean | `true` | Allow credentials in requests |
 

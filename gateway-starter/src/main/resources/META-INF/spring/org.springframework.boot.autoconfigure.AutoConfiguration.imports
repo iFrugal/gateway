@@ -1,2 +1,3 @@
 com.github.ifrugal.gateway.autoconfigure.GatewayToolkitAutoConfiguration
 com.github.ifrugal.gateway.autoconfigure.SecurityAutoConfiguration
+com.github.ifrugal.gateway.autoconfigure.RequestIdErrorAttributesAutoConfiguration

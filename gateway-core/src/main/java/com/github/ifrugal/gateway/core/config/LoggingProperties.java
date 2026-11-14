@@ -96,10 +96,23 @@ public class LoggingProperties {
 
     /**
      * Header names whose values are redacted from structured log output.
-     * Matching is case-insensitive. Set to an empty list to disable redaction
-     * (not recommended for any deployment that handles real credentials).
+     * Matching is case-insensitive. Setting this property replaces the default
+     * list entirely (Spring list binding), so repeat any defaults you still want.
+     * To add headers while keeping the defaults, use
+     * {@link #additionalSensitiveHeaders} instead. Set to an empty list to
+     * disable default redaction (not recommended for any deployment that
+     * handles real credentials).
      */
     private List<String> sensitiveHeaders = new ArrayList<>(DEFAULT_SENSITIVE_HEADERS);
+
+    /**
+     * Header names redacted in addition to {@link #sensitiveHeaders}.
+     * Use this to add custom secret headers while keeping the defaults.
+     * Binds as {@code gateway.logging.additional-sensitive-headers}.
+     * Note that {@code sensitive-headers} itself replaces the default list when
+     * set (Spring list binding).
+     */
+    private List<String> additionalSensitiveHeaders = new ArrayList<>();
 
     /**
      * List of request configurations for logging.

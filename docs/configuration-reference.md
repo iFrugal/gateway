@@ -22,7 +22,8 @@ Request and response logging for traffic flowing through the gateway. The filter
 | `gateway.logging.enabled` | `GATEWAY_LOGGING_ENABLED` | `true` | Enable/disable request/response logging |
 | `gateway.logging.level` | `GATEWAY_LOGGING_LEVEL` | `info` | Log level (info, debug, warn, error) |
 | `gateway.logging.max-body-bytes` | `GATEWAY_LOGGING_MAX_BODY_BYTES` | `65536` (64 KiB) | Byte cap on the captured request/response body copy used for logging and caching. Bodies still flow to upstream in full; only the captured copy is bounded. Set `0` to disable. See [logging.md](logging.md). |
-| `gateway.logging.sensitive-headers` | `GATEWAY_LOGGING_SENSITIVE_HEADERS` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token]` | Header names whose values are redacted (case-insensitive) in structured log output. |
+| `gateway.logging.sensitive-headers` | `GATEWAY_LOGGING_SENSITIVE_HEADERS` | `[Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token]` | Header names whose values are redacted (case-insensitive) in structured log output. Setting this property REPLACES the default list (Spring list binding), so repeat any defaults you still want. To add headers, use `additional-sensitive-headers`. |
+| `gateway.logging.additional-sensitive-headers` | `GATEWAY_LOGGING_ADDITIONAL_SENSITIVE_HEADERS` | `[]` | Header names redacted in addition to `sensitive-headers`. Additive, so the defaults are kept. |
 | `gateway.logging.ignore-paths` | `GATEWAY_LOGGING_IGNORE_PATHS` | `[]` | Path patterns to exclude from logging |
 | `gateway.logging.requests[].paths` | - | - | Ant-style path patterns to match |
 | `gateway.logging.requests[].methods` | - | - | HTTP methods (GET, POST, etc. or "*") |
@@ -44,6 +45,31 @@ gateway:
       - paths: ["/api/auth/login"]
         methods: [POST]
         exclude-body: true
+```
+
+---
+
+### Request ID Configuration (gateway.request-id.*)
+
+Request-id validation, forwarding, response echo and MDC propagation.
+Every request gets exactly one id, including ignored paths and cache hits.
+See [logging.md](logging.md#request-ids) for the full behaviour.
+
+| YAML Property | Environment Variable | Default | Description |
+|---|---|---|---|
+| `gateway.request-id.header-name` | - | `x-request-id` | Header read from the request, forwarded downstream (exactly one value) and echoed on every response. Also added to CORS exposed headers. |
+| `gateway.request-id.pattern` | - | `^[A-Za-z0-9._-]{8,64}$` | An inbound id is kept only if its first value fully matches; otherwise a random UUID is used. |
+| `gateway.request-id.mdc-key` | - | `requestId` | SLF4J MDC key holding the id in every log line of the request. |
+| `gateway.request-id.context-propagation` | - | `true` | Register the MDC accessor with Micrometer context-propagation and enable Reactor automatic context propagation. |
+
+**Example Configuration:**
+```yaml
+gateway:
+  request-id:
+    header-name: x-request-id
+    pattern: "^[A-Za-z0-9._-]{8,64}$"
+    mdc-key: requestId
+    context-propagation: true
 ```
 
 ---
@@ -91,7 +117,7 @@ Cross-Origin Resource Sharing configuration for browser-based clients.
 | `gateway.cors.allowed-origins` | `GATEWAY_CORS_ORIGINS` | `[]` | Comma-separated allowed origins |
 | `gateway.cors.allowed-methods` | - | `GET,POST,PUT,PATCH,DELETE,OPTIONS` | Allowed HTTP methods |
 | `gateway.cors.allowed-headers` | - | `*` | Allowed request headers |
-| `gateway.cors.exposed-headers` | - | `[]` | Headers exposed to clients |
+| `gateway.cors.exposed-headers` | - | `[]` | Headers exposed to clients. The request-id header (`gateway.request-id.header-name`) is always added. |
 | `gateway.cors.max-age` | `GATEWAY_CORS_MAX_AGE` | `3600` | Preflight cache duration (seconds) |
 | `gateway.cors.allow-credentials` | `GATEWAY_CORS_ALLOW_CREDENTIALS` | `true` | Allow credentials in CORS requests |
 

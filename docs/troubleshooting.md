@@ -60,7 +60,7 @@ Or use `gateway-app` directly, which already declares both.
 Three likely causes, in order:
 
 1. **`gateway.logging.enabled: false`** — flip to `true`.
-2. **Path matches an ignore pattern.** Default ignore list: `/actuator/health`, `/actuator/health/ping`, `/swagger-ui/**`, `/v3/api-docs/**`, `/swagger-resources/**`. Set `gateway.logging.ignore-paths` to a different list if you want them logged.
+2. **Path matches an ignore pattern.** Default ignore list: `/actuator/health`, `/actuator/health/**`, `/health`, `/swagger-ui/**`, `/v3/api-docs/**`, `/swagger-resources/**`. Set `gateway.logging.ignore-paths` to a different list if you want them logged.
 3. **No `requests[]` rule matches the path/method.** The filter still emits the `Request` line, but the body is only captured when a rule matches with `exclude-body: false`. To log bodies for everything:
    ```yaml
    gateway:
@@ -75,26 +75,27 @@ Three likely causes, in order:
 
 Misleading — the marker indicates the captured copy was capped, not the request. Check `gateway.logging.max-body-bytes` (default 64 KiB). Raise it if you legitimately log large payloads, lower it if you're memory-constrained. Setting it to `0` disables truncation entirely (heap-risky).
 
-### `x-request-id` missing
+### `x-request-id` missing or different from what the client sent
 
-The filter only adds the header on its outbound `chain.filter` mutation. If `gateway.logging.enabled: false`, the mutation doesn't happen and no `x-request-id` is generated. Either flip logging on or set the header from upstream.
+Every request gets an id and every response echoes it, independently of `gateway.logging.enabled` and `ignore-paths`.
+If the response has no `x-request-id`, check that `LoggingAndCachingWebFilter` is registered (a user-defined bean replaces it) and whether `gateway.request-id.header-name` was changed.
+If the echoed id differs from the one the client sent, the inbound value did not match `gateway.request-id.pattern` (default `^[A-Za-z0-9._-]{8,64}$`) and was replaced with a UUID.
+Browser clients can read the header because it is added to CORS exposed headers automatically.
 
 ### Sensitive header still appears in logs
 
-Your secret header isn't in the redaction list. Defaults: `Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token`. Add your custom name:
+Your secret header isn't in the redaction list.
+Defaults: `Authorization, Cookie, Set-Cookie, Proxy-Authorization, X-API-Key, X-Auth-Token`.
+Add your custom name with `additional-sensitive-headers`, which keeps the defaults:
 
 ```yaml
 gateway:
   logging:
-    sensitive-headers:
-      - Authorization
-      - Cookie
-      - Set-Cookie
-      - Proxy-Authorization
-      - X-API-Key
-      - X-Auth-Token
-      - X-Tenant-Secret    # your custom one
+    additional-sensitive-headers:
+      - X-Internal-Secret
 ```
+
+Setting `gateway.logging.sensitive-headers` instead REPLACES the default list (Spring list binding), so you would have to repeat every default you still want.
 
 Matching is case-insensitive. The original headers reach the upstream service unredacted; only the **logged copy** is masked.
 

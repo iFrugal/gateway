@@ -23,8 +23,9 @@ class LoggingPropertiesTest {
         assertThat(props.getMaxBodyBytes()).isEqualTo(64 * 1024);
         // Default sensitive-header list redacts common credential carriers.
         assertThat(props.getSensitiveHeaders())
-                .contains("Authorization", "Cookie", "Set-Cookie",
+                .containsExactly("Authorization", "Cookie", "Set-Cookie",
                         "Proxy-Authorization", "X-API-Key", "X-Auth-Token");
+        assertThat(props.getAdditionalSensitiveHeaders()).isEmpty();
     }
 
     @Test
